@@ -2928,11 +2928,15 @@ canvas.graph-chart {
   font-weight: 300;
   color: var(--menu-text);
   transition: opacity 0.5s ease;
-  transform: translateY(-4px);
+  transform: translateY(-10px);
 }
 
 .odometer-text-wrapper.single-line {
-  transform: translateY(8px);
+  transform: translateY(6px);
+}
+
+.odometer-text-wrapper.double-line {
+  transform: translateY(12px);
 }
 
 .odometer-text-wrapper.single-line .odometer-value {

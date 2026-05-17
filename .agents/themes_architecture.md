@@ -57,3 +57,27 @@ For runtime theme discovery, the unified output must be manually placed inside t
 - **Basic (Dark)**: Copy `basic/dist/app.html` to `cluster-widgets/Themes/Basic/index.html`.
 - **Basic Light**: Copy `basic-light/dist/app_light.html` to `cluster-widgets/Themes/BasicLight/app_light.html`.
 - **Version Bump**: Increment the `<version>` tag in `theme.xml` by `0.0.1` (e.g., to `1.0.4`) to trigger the app's internal cache-refresh and update system.
+
+---
+
+## Odometer & Maintenance Warning Y-Axis Displacement
+
+To ensure optimal layout balance when showing either a single line (odometer value only) or two lines (odometer value + maintenance/revision warnings), the widget uses a dynamic class-toggling mechanism.
+
+### 1. JavaScript State Integration
+In `odometerInfo.js`, the widget updates its container's class list dynamically based on the active display criteria:
+- **Single-Line Mode**: Applied when only the odometer is active. The wrapper is assigned `.odometer-text-wrapper.single-line`.
+- **Double-Line Mode**: Applied during startup flashing or active maintenance warnings. The wrapper is assigned `.odometer-text-wrapper.double-line`.
+
+### 2. Styling and Y-Axis Displacement
+
+The stylesheets (`night.style.css` / `light.style.css`) govern the exact vertical position via CSS transforms tailored for each theme's contrast and display parameters:
+
+- **Basic (Dark Mode - `night.style.css`)**:
+  - `.odometer-text-wrapper.single-line`: Uses `transform: translateY(-6px);` with larger text sizing to center the odometer perfectly.
+  - `.odometer-text-wrapper.double-line`: Uses `transform: translateY(0px);` to balance the two text lines nicely.
+
+- **Basic-Light (Light Mode - `light.style.css`)**:
+  - `.odometer-text-wrapper.single-line`: Uses `transform: translateY(6px);` to center the single-line odometer.
+  - `.odometer-text-wrapper.double-line`: Uses `transform: translateY(12px);` to shift the two lines, ensuring perfect clearance and alignment with surrounding visual details.
+
