@@ -2327,13 +2327,13 @@ canvas.graph-chart {
 }
 
 .mask-top-bar {
-  background: linear-gradient(to bottom, var(--mask-top-bar-bg) 50%, var(--color-white-50) 55%);
+  background: linear-gradient(to bottom, var(--mask-top-bar-bg) 60%, rgba(255, 255, 255, 0.8) 80%, rgba(255, 255, 255, 0) 100%);
   width: 100%;
   height: 125px;
   position: absolute;
   top: 0;
   left: 0;
-  box-shadow: 0 10px 80px var(--mask-circle-bg);
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.06);
 }
 
 .mask-bottom-bar {
@@ -2343,7 +2343,7 @@ canvas.graph-chart {
   width: 100%;
   height: 60px;
   background-color: var(--mask-bottom-bar-bg);
-  box-shadow: 0 -5px 10px var(--mask-circle-bg);
+  box-shadow: 0 -4px 25px rgba(0, 0, 0, 0.06);
 }
 
 .mask-circle {

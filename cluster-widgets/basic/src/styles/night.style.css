@@ -2193,27 +2193,9 @@ canvas.graph-chart {
   pointer-events: none !important;
 }
 
-/* Keep custom top/bottom background and custom height only in Esportivo mode */
-#app:not(.display-esportivo) .mask-top-bar {
-  background-image: none !important;
-  height: 125px;
-}
-
-#app:not(.display-esportivo) .dashboard-bottom-gauges {
-  background-image: none !important;
-  height: 72px !important;
-}
-
 /* Hard-stop any Esportivo-only overlays/widgets outside Esportivo mode */
 #app:not(.display-esportivo) .dashboard-speed-esportivo-widget,
 #app:not(.display-esportivo) .dashboard-sport-fixed-overlay {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-}
-
-/* Top-center info (clock/gear/mode) must exist only in Esportivo */
-#app:not(.display-esportivo) .dashboard-top-center {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;

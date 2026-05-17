@@ -4,4 +4,10 @@
     <version>1.0.3</version>
     <thumbnail>thumbnail.png</thumbnail>
     <mainFile>index.html</mainFile>
+    <AppDefaultPosition>
+        <x>0</x>
+        <y>62</y>
+        <width>1920</width>
+        <height>596</height>
+    </AppDefaultPosition>
 </theme>
