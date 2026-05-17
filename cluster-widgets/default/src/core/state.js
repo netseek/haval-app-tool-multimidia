@@ -106,7 +106,7 @@ var stateManager = new StateManager({
     display: 'Normal', //Display mode, should be either Normal, Esportivo, Reduzido or Clean
     displayFocus: 'sel_template',
     appInDash: false,
-    clusterEnabled: true,
+    clusterEnabled: false,
     brightness: 100,
     fuelRange: 0,
     fuelPercent: 0,

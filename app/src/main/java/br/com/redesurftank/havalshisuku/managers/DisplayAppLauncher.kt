@@ -18,6 +18,13 @@ import kotlinx.coroutines.delay
 import android.content.Intent
 import br.com.redesurftank.havalshisuku.managers.ThemeManager
 import br.com.redesurftank.havalshisuku.models.BottomBarState
+import br.com.redesurftank.havalshisuku.R
+import java.util.regex.Pattern
+
+data class ResolvedAppInfo(
+    val label: String,
+    val icon: android.graphics.drawable.Drawable?
+)
 
 object DisplayAppLauncher {
     
@@ -60,6 +67,33 @@ object DisplayAppLauncher {
         Log.e("DisplayAppLauncher", "CarPlay/CarLink package not found")
     }
 
+    /**
+     * Pre-defined apps that are commonly used on Haval TS multimedia systems but might not be in the launcher.
+     */
+    val PREDEFINED_APPS = listOf(
+        DisplayAppConfig(
+            packageName = "com.ts.androidauto.app",
+            activityName = "com.ts.androidauto.app.display.AapActivity",
+            displayId = 3, // Default to Cluster
+            x = 0,
+            y = 0,
+            width = 1920,
+            height = 720,
+            customName = "Android Auto",
+            forceFocus = true
+        ),
+        DisplayAppConfig(
+            packageName = "com.ts.carplay.app",
+            activityName = "com.ts.carplay.app.display.AapActivity",
+            displayId = 3, // Default to Cluster
+            x = 0,
+            y = 0,
+            width = 1920,
+            height = 720,
+            customName = "Apple CarPlay"
+        )
+    )
+
     private const val TAG = "DisplayAppLauncher"
 
     private val gson = Gson()
@@ -71,6 +105,55 @@ object DisplayAppLauncher {
     private fun getPrefs() =
         App.getDeviceProtectedContext()
             .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
+
+    /**
+     * Resolves the label and icon for a given package name, handling pre-defined apps as first-class items.
+     */
+    fun resolveAppInfo(context: Context, packageName: String, customName: String? = null): ResolvedAppInfo {
+        val pm = context.packageManager
+        
+        // 1. Determine Label
+        val label = when {
+            !customName.isNullOrBlank() -> customName
+            packageName.contains("androidauto", ignoreCase = true) || 
+            packageName.contains("gearhead", ignoreCase = true) -> "Android Auto"
+            packageName.contains("carplay", ignoreCase = true) ||
+            packageName.contains("carlink", ignoreCase = true) ||
+            packageName.contains("zlink", ignoreCase = true) -> "Apple CarPlay"
+            packageName.equals("com.google.android.youtube", ignoreCase = true) -> "YouTube"
+            packageName.equals("com.google.android.apps.youtube.music", ignoreCase = true) -> "YouTube Music"
+            else -> {
+                try {
+                    val info = pm.getApplicationInfo(packageName, 0)
+                    pm.getApplicationLabel(info).toString()
+                } catch (e: Exception) {
+                    packageName
+                }
+            }
+        }
+
+        // 2. Determine Icon
+        // Prioritize our custom icons for known system/predefined apps
+        val icon = when {
+            packageName.contains("androidauto", ignoreCase = true) || 
+            packageName.contains("gearhead", ignoreCase = true) -> context.getDrawable(R.drawable.ic_android_auto_default)
+            packageName.contains("carplay", ignoreCase = true) ||
+            packageName.contains("carlink", ignoreCase = true) ||
+            packageName.contains("zlink", ignoreCase = true) -> context.getDrawable(R.drawable.ic_carplay_default)
+            packageName.equals("com.google.android.youtube", ignoreCase = true) -> context.getDrawable(R.drawable.ic_youtube_default)
+            packageName.equals("com.google.android.apps.youtube.music", ignoreCase = true) -> context.getDrawable(R.drawable.ic_youtube_music_default)
+            packageName.startsWith("com.beantech", ignoreCase = true) -> context.getDrawable(R.drawable.ic_gwm)
+            else -> {
+                try {
+                    pm.getApplicationIcon(packageName)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }
+
+        return ResolvedAppInfo(label, icon)
+    }
 
     fun getAllConfigs(): List<DisplayAppConfig> {
         val json = getPrefs().getString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, null)
@@ -108,9 +191,48 @@ object DisplayAppLauncher {
             .apply()
     }
 
+    /**
+     * Resolves the main activity for a package and creates a default config if it doesn't exist.
+     * Defaults to Display 3 (Cluster) with full screen dimensions.
+     */
+    fun getOrCreateDefaultConfig(context: Context, packageName: String): DisplayAppConfig? {
+        val existing = getAllConfigs().find { it.packageName == packageName }
+        if (existing != null) return existing
+
+        // Check predefined apps first (they might not have a launcher intent)
+        val predefined = PREDEFINED_APPS.find { it.packageName == packageName }
+        if (predefined != null) {
+            saveConfig(predefined)
+            return predefined
+        }
+
+        val pm = context.packageManager
+        val intent = pm.getLaunchIntentForPackage(packageName) ?: return null
+        val activityName = intent.component?.className ?: return null
+
+        val config = DisplayAppConfig(
+            packageName = packageName,
+            activityName = activityName,
+            displayId = 3,
+            x = 0,
+            y = 0,
+            width = 1920,
+            height = 720,
+            substituteIcon = if (packageName.startsWith("com.beantech")) "gwm" else null
+        )
+        saveConfig(config)
+        return config
+    }
+
     fun deleteConfig(packageName: String) {
         val configs = getAllConfigs().toMutableList()
         configs.removeAll { it.packageName == packageName }
+        getPrefs().edit()
+            .putString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, gson.toJson(configs))
+            .apply()
+    }
+
+    fun saveAllConfigs(configs: List<DisplayAppConfig>) {
         getPrefs().edit()
             .putString(SharedPreferencesKeys.DISPLAY_APP_CONFIGS.key, gson.toJson(configs))
             .apply()
@@ -149,7 +271,6 @@ object DisplayAppLauncher {
 
     fun getEffectiveBounds(config: DisplayAppConfig): IntArray {
         val prefs = getPrefs()
-        val alwaysUseTheme = prefs.getBoolean(SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS.key, true)
         val virtualClusterEnabled = prefs.getBoolean(SharedPreferencesKeys.ENABLE_VIRTUAL_CLUSTER.key, true)
         
         var x = config.x
@@ -157,8 +278,8 @@ object DisplayAppLauncher {
         var width = config.width
         var height = config.height
 
-        if (alwaysUseTheme && virtualClusterEnabled && config.displayId == 3) {
-            val themeFolderName = prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Default") ?: "Default"
+        if (!config.overrideThemeDimensions && virtualClusterEnabled && config.displayId == 3) {
+            val themeFolderName = prefs.getString(SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key, "Básico") ?: "Básico"
             if (themeFolderName == "Default" || themeFolderName == "Básico" || themeFolderName == "Light") {
                 x = 0
                 y = 62
@@ -196,6 +317,11 @@ object DisplayAppLauncher {
                 val escapedActivity = config.activityName.replace("$", "\\$")
                 val isOwnPackage = config.packageName == App.getContext().packageName
 
+                // Evict any other app already on this display before fresh launch
+                if (config.displayId != 0) {
+                    evictOtherAppsFromDisplay(config.displayId, config.packageName)
+                }
+
                 // Already on target display — just resize
                 val existingStack = findStackIdForPackage(config.packageName, config.displayId)
                 if (existingStack != null) {
@@ -229,6 +355,11 @@ object DisplayAppLauncher {
                     Log.w(TAG, "Could not find stack for ${config.packageName} on display ${config.displayId}")
                 }
                 notifyDisplayStateChanged(config.displayId)
+
+                // Trigger focus poke if this is Android Auto or CarPlay on a secondary display
+                if (config.packageName == "com.ts.androidauto.app" || config.packageName == "com.ts.carplay.app") {
+                    syncInterconnectionFocus("MANUAL_LAUNCH")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error launching app ${config.packageName}", e)
             }
@@ -302,6 +433,10 @@ object DisplayAppLauncher {
                 Log.w(TAG, "Moving stack ${taskInfo.stackId} to display 0")
                 val result = sh("am display move-stack ${taskInfo.stackId} 0")
                 notifyDisplayStateChanged(taskInfo.displayId)
+                
+                // Explicitly bring to front after move to ensure it's visible on Display 0
+                sh("am stack move-task-to-front ${taskInfo.taskId}")
+                
                 if (!result.contains("Exception") && !result.contains("Error")) {
                     val movedTask = findTaskForPackage(packageName)
                     if (movedTask != null && movedTask.displayId == 0) {
@@ -345,7 +480,15 @@ object DisplayAppLauncher {
             val intent = context.packageManager.getLaunchIntentForPackage(packageName)
             if (intent != null) {
                 Log.w(TAG, "Launching $packageName via Intent")
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                intent.addFlags(
+                    android.content.Intent.FLAG_ACTIVITY_NEW_TASK or 
+                    android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                )
+                
+                // If task exists on display 0, bring it to front
+                // Newer Android versions don't support 'am stack move-task-to-front'
+                // Re-launching with flags is the most compatible way
                 context.startActivity(intent)
             } else if (activityName != null) {
                 // Fallback to am start if intent is somehow null
@@ -360,6 +503,98 @@ object DisplayAppLauncher {
             Log.e(TAG, "Error launching $packageName", e)
         }
     }
+
+    /**
+     * Finds the package name for the first task in a given stack by parsing the stack list.
+     */
+    private fun findPackageNameForStack(stackId: Int, stackList: String): String? {
+        var inTargetStack = false
+        for (line in stackList.lines()) {
+            val stackMatch = Regex("""Stack id=(\d+)""").find(line)
+            if (stackMatch != null) {
+                inTargetStack = stackMatch.groupValues[1].toIntOrNull() == stackId
+                continue
+            }
+            if (inTargetStack) {
+                if (line.contains("Stack id=")) break
+                
+                val taskMatch = Regex("""taskId=(\d+):\s*([^/]+)/""").find(line)
+                if (taskMatch != null) {
+                    return taskMatch.groupValues[2]
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Brings all applications from secondary displays (1 and 3) back to the main display (0).
+     */
+    suspend fun bringAllToMainDisplay() = withContext(Dispatchers.IO) {
+        val stackList = getStackList()
+        val displaysToEvict = setOf(1, 3)
+        val stacksToMove = mutableListOf<Pair<Int, Int>>() // stackId, displayId
+        
+        var currentDisplayId: Int? = null
+        for (line in stackList.lines()) {
+            val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
+            if (stackMatch != null) {
+                val stackId = stackMatch.groupValues[1].toIntOrNull()
+                currentDisplayId = stackMatch.groupValues[2].toIntOrNull()
+                if (stackId != null && currentDisplayId != null && displaysToEvict.contains(currentDisplayId)) {
+                    stacksToMove.add(stackId to currentDisplayId)
+                }
+            }
+        }
+        
+        if (stacksToMove.isEmpty()) {
+            Log.w(TAG, "No stacks found on displays 1 or 3 to move")
+            return@withContext
+        }
+
+        for ((stackId, displayId) in stacksToMove) {
+            val pkg = findPackageNameForStack(stackId, stackList)
+            Log.w(TAG, "Moving stack $stackId ($pkg) from display $displayId to display 0")
+            
+            val result = sh("am display move-stack $stackId 0")
+            if (result.contains("Exception") || result.contains("Error")) {
+                Log.e(TAG, "Failed to move stack $stackId: $result")
+                continue
+            }
+
+            // Bring to front immediately after move
+            if (pkg != null) {
+                val config = PREDEFINED_APPS.find { it.packageName == pkg }
+                val activity = config?.activityName?.replace("$", "\\$")
+                if (activity != null) {
+                    // Force fullscreen and bring to front
+                    sh("am start -n $pkg/$activity --display 0 --windowingMode 1")
+                } else {
+                    // Fallback to simple intent launch
+                    val intent = App.getContext().packageManager.getLaunchIntentForPackage(pkg)
+                    intent?.let {
+                        it.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        App.getContext().startActivity(it)
+                    }
+                }
+            }
+            
+            if (pkg != null) {
+                if (!BottomBarState.restoredApps.contains(pkg)) {
+                    withContext(Dispatchers.Main) {
+                        BottomBarState.restoredApps.add(pkg)
+                    }
+                }
+            }
+            
+            val res = getDisplayResolution(0)
+            sh("am stack resize $stackId 0 0 ${res.first} ${res.second}")
+        }
+        
+        displaysToEvict.forEach { notifyDisplayStateChanged(it) }
+        notifyBottomBarUpdate()
+    }
+
 
     /**
      * Sends the app to the target secondary display with saved bounds.
@@ -425,57 +660,96 @@ object DisplayAppLauncher {
 
             Log.w(TAG, "App moved to display ${config.displayId} with bounds, state preserved")
             notifyDisplayStateChanged(config.displayId)
+
+            // Trigger focus poke immediately after move
+            if (config.packageName == "com.ts.androidauto.app" || config.packageName == "com.ts.carplay.app") {
+                syncInterconnectionFocus("MANUAL_MOVE")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error sending to display", e)
         }
     }
 
     /**
-     * Moves any other configured app currently on the target display back to display 0.
+     * Moves any other app currently on the target display back to display 0.
      * Only 1 app per secondary display is supported by the hardware.
      */
     private fun evictOtherAppsFromDisplay(displayId: Int, excludePackage: String) {
-        val configs = getAllConfigs()
-        for (cfg in configs) {
-            val pkg = cfg.packageName
-            if (pkg == excludePackage) continue
-            if (cfg.displayId != displayId) continue
-            val task = findTaskForPackage(pkg) ?: continue
-            if (task.displayId != displayId) continue
+        if (displayId == 0) return
+        
+        val stackList = getStackList()
+        val stacksToEvict = mutableListOf<Int>()
+        
+        var currentDisplayId: Int? = null
+        for (line in stackList.lines()) {
+            val m = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
+            if (m != null) {
+                val sId = m.groupValues[1].toIntOrNull()
+                currentDisplayId = m.groupValues[2].toIntOrNull()
+                if (sId != null && currentDisplayId == displayId) {
+                    stacksToEvict.add(sId)
+                }
+            }
+        }
 
-            Log.w(TAG, "Evicting $pkg from display $displayId → display 0")
-            // Save current bounds before eviction
-            saveCurrentBounds(pkg, task)
+        if (stacksToEvict.isEmpty()) return
 
-            val result = sh("am display move-stack ${task.stackId} 0")
-            val movedTask = findTaskForPackage(pkg)
-            if (movedTask != null && movedTask.displayId == 0) {
+        for (stackId in stacksToEvict) {
+            val pkg = findPackageNameForStack(stackId, stackList)
+            if (pkg == null || pkg == excludePackage || pkg == "com.android.systemui") continue
+            
+            Log.w(TAG, "Evicting $pkg (stack $stackId) from display $displayId → display 0")
+            
+            val task = findTaskForPackage(pkg)
+            if (task != null) {
+                saveCurrentBounds(pkg, task)
+            }
+
+            val result = sh("am display move-stack $stackId 0")
+            if (result.contains("Exception") || result.contains("Error")) {
+                Log.e(TAG, "Failed to evict $pkg: $result")
+                continue
+            }
+
+            // Bring to front on display 0
+            if (task != null) {
+                val config = PREDEFINED_APPS.find { it.packageName == pkg }
+                val activity = config?.activityName?.replace("$", "\\$")
+                if (activity != null) {
+                    sh("am start -n $pkg/$activity --display 0 --windowingMode 1")
+                } else {
+                    val intent = App.getContext().packageManager.getLaunchIntentForPackage(pkg)
+                    intent?.let {
+                        it.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        App.getContext().startActivity(it)
+                    }
+                }
+                
                 // Mark evicted app as restored
                 if (!BottomBarState.restoredApps.contains(pkg)) {
                     BottomBarState.restoredApps.add(pkg)
                 }
+                
                 val cached = lastKnownDisplayBounds[pkg]?.get(0)
                 val overscanPx = getOverscanForPackage(pkg)
                 val density = App.getContext().resources.displayMetrics.density
                 val overscanDp = (overscanPx / density).toInt()
-
-                sh("am stack set-windowing-mode ${movedTask.stackId} 1")
                 
                 if (cached != null) {
                     var y2 = cached[3]
                     if (y2 >= 710) y2 = 720
                     Log.w(TAG, "[EVICTION] RESTORE App: $pkg | Bounds: [${cached[0]},${cached[1]},${cached[2]},$y2] (Full Height) | Overscan: ${overscanDp}dp | Mode: 1")
-                    sh("am stack resize ${movedTask.stackId} ${cached[0]} ${cached[1]} ${cached[2]} $y2")
+                    sh("am stack resize $stackId ${cached[0]} ${cached[1]} ${cached[2]} $y2")
                 } else {
                     val res = getDisplayResolution(0)
                     val effectiveHeight = res.second
                     Log.w(TAG, "[EVICTION] FALLBACK App: $pkg | Bounds: [0,0,${res.first},$effectiveHeight] (Full Height) | Overscan: ${overscanDp}dp | Mode: 1")
-                    sh("am stack resize ${movedTask.stackId} 0 0 ${res.first} $effectiveHeight")
+                    sh("am stack resize $stackId 0 0 ${res.first} $effectiveHeight")
                 }
-                notifyBottomBarUpdate()
             }
         }
         notifyDisplayStateChanged(displayId)
+        notifyBottomBarUpdate()
     }
 
     // --- Stack parsing helpers ---
@@ -533,17 +807,39 @@ object DisplayAppLauncher {
     }
 
     fun isAnyAppOnDisplay(displayId: Int): Boolean {
-        var currentDisplayId: Int? = null
-        for (line in getStackList().lines()) {
-            val stackMatch = Regex("""Stack id=(\d+).*displayId=(\d+)""").find(line)
-            if (stackMatch != null) {
-                currentDisplayId = stackMatch.groupValues[2].toIntOrNull()
+        return getTopPackageOnDisplay(displayId) != null
+    }
+
+    fun getTopPackageOnDisplay(displayId: Int): String? {
+        try {
+            val stackList = getStackList()
+            var currentDisplayId: Int? = null
+            val regex = Regex("""taskId=\d+:\s*([a-zA-Z0-9._]+)/""")
+            
+            for (line in stackList.lines()) {
+                val stackMatch = Regex("""displayId=(\d+)""").find(line)
+                if (stackMatch != null) {
+                    currentDisplayId = stackMatch.groupValues[1].toIntOrNull()
+                }
+                if (currentDisplayId == displayId) {
+                    val match = regex.find(line)
+                    if (match != null) {
+                        return match.groupValues[1]
+                    }
+                }
             }
-            if (currentDisplayId == displayId && Regex("""taskId=\d+:""").containsMatchIn(line)) {
-                return true
-            }
+            
+            // Fallback to dumpsys if am stack list is not helping
+            val output = ShizukuUtils.runCommandAndGetOutput(
+                arrayOf("sh", "-c", "dumpsys activity activities | sed -n '/Display #$displayId/,/Display #/p' | grep -E 'mResumedActivity|mCurrentFocus|mFocusedActivity'")
+            )
+            val regex2 = Regex("""([a-zA-Z0-9._]+)/[.${'$'}a-zA-Z0-9._]+""")
+            val match = regex2.find(output)
+            return match?.groupValues?.get(1)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting top package for display $displayId", e)
         }
-        return false
+        return null
     }
 
     fun notifyDisplayStateChanged(displayId: Int) {
@@ -713,6 +1009,7 @@ object DisplayAppLauncher {
      * fullscreen mode works fine after move-stack.
      */
     fun onAppWindowChanged(packageName: String) {
+
         val config = getAllConfigs().find { it.packageName == packageName } ?: return
         if (config.displayId == 0) return
 
@@ -755,4 +1052,99 @@ object DisplayAppLauncher {
         val mode = display.mode
         return Pair(mode.physicalWidth, mode.physicalHeight)
     }
+
+    fun hasAnyForceFocusApp(): Boolean = getAllConfigs().any { it.forceFocus }
+
+    fun syncInterconnectionFocus(triggerSource: String) {
+        val forceFocusConfigs = getAllConfigs().filter { it.forceFocus }
+        if (forceFocusConfigs.isEmpty()) return
+
+        // Mark cooldown so the receiver ignores the bg→fg oscillation our poke causes
+        br.com.redesurftank.havalshisuku.broadcastReceivers.AndroidAutoMonitorReceiver.lastPokeTimestamp = System.currentTimeMillis()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            for (config in forceFocusConfigs) {
+                val taskInfo = findTaskForPackage(config.packageName)
+                if (taskInfo == null) continue
+                if (taskInfo.displayId != 1 && taskInfo.displayId != 3) continue
+
+                val sb = StringBuilder()
+                sb.append("am broadcast -a com.ts.carplay.action.VIDEO_FOCUS_CHANGE --es \"focus\" \"${config.packageName}\" --ei \"displayId\" ${taskInfo.displayId}; ")
+                sb.append("am broadcast -a com.ts.androidauto.action.AndroidAutoService; ")
+                val escapedActivity = config.activityName.replace("$", "\\$")
+                sb.append("am start -n ${config.packageName}/$escapedActivity --display ${taskInfo.displayId} --windowingMode 1")
+
+                Log.w("FOCUS_SYNC", "Executing focus poke (Trigger: $triggerSource, Display: ${taskInfo.displayId}, App: ${config.packageName})")
+                sh(sb.toString())
+            }
+        }
+    }
+
+    /**
+     * Sends ONLY the broadcasts to restore video focus. 
+     * Does NOT use 'am start', so it won't cause screen flashing.
+     */
+    fun syncInterconnectionFocusLite(triggerSource: String) {
+        val forceFocusConfigs = getAllConfigs().filter { it.forceFocus }
+        if (forceFocusConfigs.isEmpty()) return
+
+        CoroutineScope(Dispatchers.IO).launch {
+            for (config in forceFocusConfigs) {
+                val taskInfo = findTaskForPackage(config.packageName)
+                if (taskInfo == null) continue
+                if (taskInfo.displayId != 1 && taskInfo.displayId != 3) continue
+
+                val sb = StringBuilder()
+                sb.append("am broadcast -a com.ts.carplay.action.VIDEO_FOCUS_CHANGE --es \"focus\" \"${config.packageName}\" --ei \"displayId\" ${taskInfo.displayId}; ")
+                sb.append("am broadcast -a com.ts.androidauto.action.AndroidAutoService")
+
+                Log.w("FOCUS_SYNC", "Executing LITE focus poke (Trigger: $triggerSource, Display: ${taskInfo.displayId}, App: ${config.packageName})")
+                sh(sb.toString())
+            }
+        }
+    }
+
+    fun discoverAndroidAutoBroadcasts(): List<String> {
+        val discoveredActions = mutableSetOf<String>()
+        val packages = listOf(
+            "com.ts.androidauto.app",
+            "com.ts.androidauto.projectionservice",
+            "com.ts.androidauto",
+            "com.ts.carplay.app",
+            "com.ts.carplay"
+        )
+
+        packages.forEach { pkg ->
+            try {
+                val output = ShizukuUtils.runCommandAndGetOutput(arrayOf("dumpsys", "package", pkg))
+                // Improved regex to capture actions
+                val regex = Regex("""Action:\s+"([^"]+)"""")
+                regex.findAll(output).forEach { match ->
+                    val action = match.groupValues[1]
+                    if (action.contains("androidauto") || action.contains("carplay") || action.contains("mirror") || action.contains("link")) {
+                        discoveredActions.add(action)
+                    }
+                }
+                
+                // Also look for actions that don't have quotes
+                val regex2 = Regex("""action\s+([a-zA-Z0-9._]+)""")
+                regex2.findAll(output).forEach { match ->
+                    val action = match.groupValues[1]
+                    if (action.contains("androidauto") || action.contains("carplay") || action.contains("mirror") || action.contains("link")) {
+                        discoveredActions.add(action)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("AA_DISCOVERY", "Error discovering broadcasts for $pkg", e)
+            }
+        }
+
+        // Add some hardcoded ones that we found via adb
+        discoveredActions.add("ts.car.androidauto.view_state")
+        discoveredActions.add("com.ts.androidauto.adapter.resource.RECEIVER_CLICK_ACTION")
+
+        Log.w("AA_DISCOVERY", "v2 Discovered Actions: ${discoveredActions.joinToString(", ")}")
+        return discoveredActions.toList()
+    }
+
 }

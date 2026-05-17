@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -1319,15 +1318,15 @@ fun BasicSettingsTab() {
                                                                                 SharedPreferencesKeys
                                                                                         .PERSISTENT_BOTTOM_BAR_OVERSCAN
                                                                                         .key,
-                                                                                60
+                                                                                20
                                                                         )
                                                                 br.com.redesurftank.havalshisuku
                                                                         .utils.ShizukuUtils
                                                                         .runCommandAndGetOutput(
                                                                                 arrayOf(
-                                                                                        "sh",
-                                                                                        "-c",
-                                                                                        "wm overscan 0,0,0,$overscan"
+                                                                                        "wm",
+                                                                                        "overscan",
+                                                                                        "0,0,0,$overscan"
                                                                                 )
                                                                         )
                                                         }
@@ -1339,9 +1338,9 @@ fun BasicSettingsTab() {
                                                                         .utils.ShizukuUtils
                                                                         .runCommandAndGetOutput(
                                                                                 arrayOf(
-                                                                                        "sh",
-                                                                                        "-c",
-                                                                                        "wm overscan 0,0,0,0"
+                                                                                        "wm",
+                                                                                        "overscan",
+                                                                                        "0,0,0,0"
                                                                                 )
                                                                         )
                                                         }
@@ -1469,7 +1468,6 @@ fun BasicSettingsTab() {
                                                                                         12.dp
                                                                                 )
                                                                 )
-
                                                         }
                                                 }
                                         } else null
@@ -2345,8 +2343,7 @@ fun BasicSettingsTab() {
                         dialog.show()
                 }
         }
-
-        }
+}
 
 @Composable
 fun FridaHooksTab() {
@@ -2765,14 +2762,6 @@ fun TelasTab() {
                                 ?: "Default"
                 )
         }
-        var alwaysUseThemeDimensions by remember {
-                mutableStateOf(
-                        prefs.getBoolean(
-                                SharedPreferencesKeys.ALWAYS_USE_THEME_DIMENSIONS.key,
-                                true
-                        )
-                )
-        }
         var defaultApp by remember {
                 mutableStateOf(
                         prefs.getString(SharedPreferencesKeys.DEFAULT_DISPLAY_APP_PACKAGE.key, "")
@@ -2973,37 +2962,6 @@ fun TelasTab() {
                                                         )
                                         )
                                 }
-
-                                // Image 4 Example
-                                val image4 = remember {
-                                        try {
-                                                // NOTE: This is a hardcoded absolute path that may
-                                                // not exist on your
-                                                // machine.
-                                                // To fix this, add your image to 'res/drawable' and
-                                                // use:
-                                                // BitmapFactory.decodeResource(context.resources,
-                                                // R.drawable.your_image)
-                                                BitmapFactory.decodeFile(
-                                                                "C:\\Users\\marce\\.gemini\\antigravity\\brain\\6ffae6a8-c34c-41a2-8637-3fbac551d5a1\\media__1773951437085.png"
-                                                        )
-                                                        ?.asImageBitmap()
-                                        } catch (e: Exception) {
-                                                null
-                                        }
-                                }
-                                if (image4 != null) {
-                                        Image(
-                                                bitmap = image4,
-                                                contentDescription =
-                                                        "Exemplo de Funções do Cluster",
-                                                modifier =
-                                                        Modifier.fillMaxWidth()
-                                                                .heightIn(max = 160.dp)
-                                                                .clip(RoundedCornerShape(8.dp)),
-                                                contentScale = ContentScale.Fit
-                                        )
-                                }
                         }
                 }
 
@@ -3164,16 +3122,6 @@ fun TelasTab() {
                                                                                 .key,
                                                                         it
                                                                 )
-                                                                if (it) {
-                                                                        putBoolean(
-                                                                                SharedPreferencesKeys
-                                                                                        .ALWAYS_USE_THEME_DIMENSIONS
-                                                                                        .key,
-                                                                                true
-                                                                        )
-                                                                        alwaysUseThemeDimensions =
-                                                                                true
-                                                                }
                                                         }
                                                 },
                                                 modifier = Modifier.scale(0.9f),
@@ -3210,43 +3158,6 @@ fun TelasTab() {
                                         )
                                 }
 
-                                // Image 5 Example
-                                if (enableMask || !allClusterFunctionsEnabled) {
-                                        val image5 = remember {
-                                                try {
-                                                        // NOTE: This is a hardcoded absolute path
-                                                        // that may not exist on your
-                                                        // machine.
-                                                        // To fix this, add your image to
-                                                        // 'res/drawable' and use:
-                                                        // BitmapFactory.decodeResource(context.resources,
-                                                        // R.drawable.your_image)
-                                                        BitmapFactory.decodeFile(
-                                                                        "C:\\Users\\marce\\.gemini\\antigravity\\brain\\6ffae6a8-c34c-41a2-8637-3fbac551d5a1\\media__1773951531439.png"
-                                                                )
-                                                                ?.asImageBitmap()
-                                                } catch (e: Exception) {
-                                                        null
-                                                }
-                                        }
-                                        if (image5 != null) {
-                                                Image(
-                                                        bitmap = image5,
-                                                        contentDescription =
-                                                                "Exemplo do Virtual Cluster",
-                                                        modifier =
-                                                                Modifier.fillMaxWidth()
-                                                                        .heightIn(max = 140.dp)
-                                                                        .clip(
-                                                                                RoundedCornerShape(
-                                                                                        8.dp
-                                                                                )
-                                                                        ),
-                                                        contentScale = ContentScale.Fit
-                                                )
-                                        }
-                                }
-
                                 if (enableMask && allClusterFunctionsEnabled) {
                                         HorizontalDivider(
                                                 color = Color(0xFF3A3F47),
@@ -3257,93 +3168,6 @@ fun TelasTab() {
                                                 modifier = Modifier.fillMaxWidth(),
                                                 verticalAlignment = Alignment.CenterVertically
                                         ) {
-
-                                                // Theme Dimensions Override Switch
-                                                Row(
-                                                        modifier = Modifier.weight(1f),
-                                                        verticalAlignment =
-                                                                Alignment.CenterVertically
-                                                ) {
-                                                        Column(
-                                                                modifier = Modifier.weight(1f),
-                                                                horizontalAlignment =
-                                                                        Alignment.Start
-                                                        ) {
-                                                                Text(
-                                                                        "Dimensões do Tema",
-                                                                        color = Color.White,
-                                                                        fontSize = 14.sp,
-                                                                        fontWeight =
-                                                                                FontWeight.Medium
-                                                                )
-                                                                Text(
-                                                                        "Sempre usar dimensões do tema para apps",
-                                                                        color = Color(0xFFB0B8C4),
-                                                                        fontSize = 10.sp,
-                                                                        lineHeight = 12.sp
-                                                                )
-                                                        }
-
-                                                        Switch(
-                                                                checked = alwaysUseThemeDimensions,
-                                                                enabled =
-                                                                        enableMask &&
-                                                                                allClusterFunctionsEnabled,
-                                                                onCheckedChange = {
-                                                                        alwaysUseThemeDimensions =
-                                                                                it
-                                                                        prefs.edit {
-                                                                                putBoolean(
-                                                                                        SharedPreferencesKeys
-                                                                                                .ALWAYS_USE_THEME_DIMENSIONS
-                                                                                                .key,
-                                                                                        it
-                                                                                )
-                                                                        }
-                                                                },
-                                                                modifier = Modifier.scale(0.8f),
-                                                                colors =
-                                                                        SwitchDefaults.colors(
-                                                                                checkedThumbColor =
-                                                                                        br.com
-                                                                                                .redesurftank
-                                                                                                .havalshisuku
-                                                                                                .ui
-                                                                                                .components
-                                                                                                .AppColors
-                                                                                                .TextPrimary,
-                                                                                checkedTrackColor =
-                                                                                        br.com
-                                                                                                .redesurftank
-                                                                                                .havalshisuku
-                                                                                                .ui
-                                                                                                .components
-                                                                                                .AppColors
-                                                                                                .Primary,
-                                                                                uncheckedThumbColor =
-                                                                                        br.com
-                                                                                                .redesurftank
-                                                                                                .havalshisuku
-                                                                                                .ui
-                                                                                                .components
-                                                                                                .AppColors
-                                                                                                .TextSecondary,
-                                                                                uncheckedTrackColor =
-                                                                                        br.com
-                                                                                                .redesurftank
-                                                                                                .havalshisuku
-                                                                                                .ui
-                                                                                                .components
-                                                                                                .AppColors
-                                                                                                .ButtonSecondary,
-                                                                                uncheckedBorderColor =
-                                                                                        Color.Transparent,
-                                                                                checkedBorderColor =
-                                                                                        Color.Transparent
-                                                                        )
-                                                        )
-                                                }
-
                                                 Spacer(modifier = Modifier.width(16.dp))
 
                                                 // Default App Selection
@@ -4228,7 +4052,9 @@ fun TelasTab() {
                                                                         ) {
                                                                                 Column {
                                                                                         Text(
-                                                                                                if (entry.km != 0) {
+                                                                                                if (entry.km !=
+                                                                                                                0
+                                                                                                ) {
                                                                                                         "${String.format("%,d", entry.km) } km"
                                                                                                 } else {
                                                                                                         "Data de Compra"
@@ -4476,26 +4302,13 @@ fun DisplayAppConfigSection() {
                         }
                 } else {
                         configs.forEach { config ->
-                                val pm = context.packageManager
-                                val appName =
-                                        if (!config.customName.isNullOrBlank()) {
-                                                config.customName
-                                        } else {
-                                                try {
-                                                        pm.getApplicationInfo(config.packageName, 0)
-                                                                .let {
-                                                                        pm.getApplicationLabel(it)
-                                                                                .toString()
-                                                                }
-                                                } catch (_: Exception) {
-                                                        config.packageName
-                                                }
-                                        }
-                                val appIcon =
-                                        try {
-                                                pm.getApplicationIcon(config.packageName)
-                                        } catch (_: Exception) {
-                                                null
+                                val appInfo =
+                                        remember(config.packageName, config.customName) {
+                                                DisplayAppLauncher.resolveAppInfo(
+                                                        context,
+                                                        config.packageName,
+                                                        config.customName
+                                                )
                                         }
                                 val displayLabel =
                                         TargetDisplay.fromId(config.displayId)?.label
@@ -4532,66 +4345,124 @@ fun DisplayAppConfigSection() {
                                                                 contentAlignment = Alignment.Center
                                                         ) {
                                                                 if (config.substituteIcon != null) {
-                                                                        Icon(
-                                                                                imageVector =
-                                                                                        when (config.substituteIcon
-                                                                                        ) {
-                                                                                                "nav" ->
-                                                                                                        Icons.Default
-                                                                                                                .Place
-                                                                                                "music" ->
-                                                                                                        Icons.Default
-                                                                                                                .PlayArrow
-                                                                                                "video" ->
-                                                                                                        Icons.Default
-                                                                                                                .Movie
-                                                                                                "settings" ->
-                                                                                                        Icons.Default
-                                                                                                                .Settings
-                                                                                                "haval" ->
-                                                                                                        Icons.Default
-                                                                                                                .DirectionsCar
-                                                                                                else ->
-                                                                                                        Icons.Default
-                                                                                                                .Android
-                                                                                        },
-                                                                                contentDescription =
-                                                                                        null,
-                                                                                tint = Color.White,
-                                                                                modifier =
-                                                                                        Modifier.size(
-                                                                                                32.dp
-                                                                                        )
-                                                                        )
-                                                                } else if (appIcon != null) {
+                                                                        if (config.substituteIcon ==
+                                                                                        "youtube" ||
+                                                                                        config.substituteIcon ==
+                                                                                                "youtube_music" ||
+                                                                                        config.substituteIcon ==
+                                                                                                "gwm"
+                                                                        ) {
+                                                                                Image(
+                                                                                        painter =
+                                                                                                painterResource(
+                                                                                                        id =
+                                                                                                                when (config.substituteIcon
+                                                                                                                ) {
+                                                                                                                        "youtube" ->
+                                                                                                                                R.drawable
+                                                                                                                                        .ic_youtube_default
+                                                                                                                        "youtube_music" ->
+                                                                                                                                R.drawable
+                                                                                                                                        .ic_youtube_music_default
+                                                                                                                        "gwm" ->
+                                                                                                                                R.drawable
+                                                                                                                                        .ic_gwm
+                                                                                                                        else ->
+                                                                                                                                R.drawable
+                                                                                                                                        .ic_youtube_default
+                                                                                                                }
+                                                                                                ),
+                                                                                        contentDescription =
+                                                                                                null,
+                                                                                        modifier =
+                                                                                                Modifier.size(
+                                                                                                        32.dp
+                                                                                                )
+                                                                                )
+                                                                        } else {
+                                                                                Icon(
+                                                                                        imageVector =
+                                                                                                when (config.substituteIcon
+                                                                                                ) {
+                                                                                                        "nav" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Place
+                                                                                                        "music" ->
+                                                                                                                Icons.Default
+                                                                                                                        .PlayArrow
+                                                                                                        "video" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Movie
+                                                                                                        "settings" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Settings
+                                                                                                        "haval" ->
+                                                                                                                Icons.Default
+                                                                                                                        .DirectionsCar
+                                                                                                        "game" ->
+                                                                                                                Icons.Default
+                                                                                                                        .SportsEsports
+                                                                                                        "tv" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Tv
+                                                                                                        "phone" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Phone
+                                                                                                        "chat" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Chat
+                                                                                                        "map_alt" ->
+                                                                                                                Icons.Default
+                                                                                                                        .Map
+                                                                                                        else ->
+                                                                                                                Icons.Default
+                                                                                                                        .Android
+                                                                                                },
+                                                                                        contentDescription =
+                                                                                                null,
+                                                                                        tint =
+                                                                                                Color.White,
+                                                                                        modifier =
+                                                                                                Modifier.size(
+                                                                                                        32.dp
+                                                                                                )
+                                                                                )
+                                                                        }
+                                                                } else if (appInfo.icon != null) {
                                                                         AsyncImage(
-                                                                                model = appIcon,
-                                                                                contentDescription =
-                                                                                        null,
-                                                                                modifier =
-                                                                                        Modifier.fillMaxSize(),
-                                                                                contentScale =
-                                                                                        ContentScale
-                                                                                                .Fit
+                                                                                model = appInfo.icon,
+                                                                                contentDescription = null,
+                                                                                modifier = Modifier.fillMaxSize(),
+                                                                                contentScale = ContentScale.Fit
                                                                         )
                                                                 } else {
-                                                                        Icon(
-                                                                                Icons.Default
-                                                                                        .Android,
-                                                                                contentDescription =
-                                                                                        null,
-                                                                                tint = Color.White,
-                                                                                modifier =
-                                                                                        Modifier.size(
-                                                                                                32.dp
-                                                                                        )
-                                                                        )
+                                                                        val fallbackIcon = when {
+                                                                                config.packageName.contains("androidauto") -> R.drawable.ic_android_auto_default
+                                                                                config.packageName.contains("carplay") -> R.drawable.ic_carplay_default
+                                                                                else -> null
+                                                                        }
+                                                                        
+                                                                        if (fallbackIcon != null) {
+                                                                                AsyncImage(
+                                                                                        model = fallbackIcon,
+                                                                                        contentDescription = null,
+                                                                                        modifier = Modifier.fillMaxSize(),
+                                                                                        contentScale = ContentScale.Fit
+                                                                                )
+                                                                        } else {
+                                                                                Icon(
+                                                                                        Icons.Default.Android,
+                                                                                        contentDescription = null,
+                                                                                        tint = Color.White,
+                                                                                        modifier = Modifier.size(32.dp)
+                                                                                )
+                                                                        }
                                                                 }
                                                         }
                                                         Spacer(Modifier.width(16.dp))
                                                         Column(modifier = Modifier.weight(4f)) {
                                                                 Text(
-                                                                        appName,
+                                                                        appInfo.label,
                                                                         color = Color.White,
                                                                         fontSize = 16.sp,
                                                                         fontWeight =
@@ -5061,6 +4932,15 @@ fun DisplayAppConfigDialog(
         var selectedApp by remember { mutableStateOf<InstalledAppInfo?>(null) }
         var showAppPicker by remember { mutableStateOf(false) }
 
+        val configuredPackages = remember {
+                val all = DisplayAppLauncher.getAllConfigs().map { it.packageName }.toSet()
+                if (existingConfig != null) {
+                        all - existingConfig.packageName
+                } else {
+                        all
+                }
+        }
+
         // Display selection
         var selectedDisplay by remember {
                 mutableStateOf(
@@ -5082,6 +4962,10 @@ fun DisplayAppConfigDialog(
         var posY by remember { mutableIntStateOf(existingConfig?.y ?: 0) }
         var sizeW by remember { mutableIntStateOf(existingConfig?.width ?: resolution.first) }
         var sizeH by remember { mutableIntStateOf(existingConfig?.height ?: resolution.second) }
+        var forceFocus by remember { mutableStateOf(existingConfig?.forceFocus ?: false) }
+        var overrideThemeDimensions by remember {
+                mutableStateOf(existingConfig?.overrideThemeDimensions ?: false)
+        }
         var selectedSubIcon by remember { mutableStateOf(existingConfig?.substituteIcon) }
 
         val substituteIcons =
@@ -5089,13 +4973,16 @@ fun DisplayAppConfigDialog(
                         "nav" to "Mapa",
                         "music" to "Música",
                         "video" to "Vídeo",
+                        "youtube" to "YouTube",
+                        "youtube_music" to "Music",
                         "settings" to "Ajustes",
                         "haval" to "Carro",
                         "game" to "Jogo",
                         "tv" to "TV",
                         "phone" to "Telefone",
                         "chat" to "Conversa",
-                        "map_alt" to "Explorar"
+                        "map_alt" to "Explorar",
+                        "gwm" to "GWM"
                 )
 
         // Preview tracking
@@ -5104,6 +4991,7 @@ fun DisplayAppConfigDialog(
 
         var customName by remember { mutableStateOf(existingConfig?.customName ?: "") }
         var showRenameDialog by remember { mutableStateOf(false) }
+        var showInterconnectionConfirmDialog by remember { mutableStateOf<InstalledAppInfo?>(null) }
 
         // Helper to build config from current state
         fun currentConfig(): DisplayAppConfig? {
@@ -5118,34 +5006,27 @@ fun DisplayAppConfigDialog(
                         height = sizeH,
                         substituteIcon = selectedSubIcon,
                         iconColor = selectedIconColor,
-                        customName = if (customName.isBlank()) null else customName
+                        customName = if (customName.isBlank()) null else customName,
+                        forceFocus = forceFocus,
+                        overrideThemeDimensions = overrideThemeDimensions
                 )
         }
 
         // Load existing app info and auto-launch preview
         LaunchedEffect(existingConfig) {
                 if (existingConfig != null) {
-                        val pm = context.packageManager
-                        val label =
-                                try {
-                                        pm.getApplicationInfo(existingConfig.packageName, 0).let {
-                                                pm.getApplicationLabel(it).toString()
-                                        }
-                                } catch (_: Exception) {
-                                        existingConfig.packageName
-                                }
-                        val icon =
-                                try {
-                                        pm.getApplicationIcon(existingConfig.packageName)
-                                } catch (_: Exception) {
-                                        null
-                                }
+                        val appInfo =
+                                DisplayAppLauncher.resolveAppInfo(
+                                        context,
+                                        existingConfig.packageName,
+                                        existingConfig.customName
+                                )
                         selectedApp =
                                 InstalledAppInfo(
                                         existingConfig.packageName,
                                         existingConfig.activityName,
-                                        label,
-                                        icon
+                                        appInfo.label,
+                                        appInfo.icon
                                 )
                         // Auto-launch with existing config for visual reference
                         previewActive = true
@@ -5189,6 +5070,7 @@ fun DisplayAppConfigDialog(
                 Card(
                         modifier =
                                 Modifier.fillMaxWidth(0.35f)
+                                        .heightIn(max = 550.dp)
                                         .wrapContentHeight()
                                         .border(1.dp, Color(0xFF1D2430), RoundedCornerShape(12.dp)),
                         colors =
@@ -5201,9 +5083,9 @@ fun DisplayAppConfigDialog(
                                 modifier =
                                         Modifier.fillMaxWidth()
                                                 .wrapContentHeight()
-                                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                                .padding(horizontal = 16.dp, vertical = 10.dp)
                                                 .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                                 Row(
                                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -5458,57 +5340,210 @@ fun DisplayAppConfigDialog(
                                         }
                                 }
 
-                                // Resolution info
-                                Text(
-                                        "Resolução: ${resolution.first} x ${resolution.second} | Pos: $posX,$posY",
-                                        color = Color(0xFF808080),
-                                        fontSize = 11.sp
-                                )
+                                Spacer(Modifier.height(4.dp))
 
-                                // Position sliders
+                                // PER-APP OVERRIDES SECTION
                                 Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                        Box(modifier = Modifier.weight(1f)) {
-                                                SliderWithLabel(
-                                                        label = "Posição X",
-                                                        value = posX,
-                                                        range = 0..resolution.first,
-                                                        onValueChange = { posX = it }
-                                                )
+                                        // Forçar Foco (Only for Android Auto basically, but keeping
+                                        // generic)
+                                        if (selectedApp?.packageName == "com.ts.androidauto.app") {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                                "Recuperação de Foco",
+                                                                color = Color(0xFFB0B8C4),
+                                                                fontSize = 12.sp
+                                                        )
+                                                        Spacer(Modifier.height(4.dp))
+                                                        Row(
+                                                                verticalAlignment =
+                                                                        Alignment.CenterVertically,
+                                                                modifier =
+                                                                        Modifier.fillMaxWidth()
+                                                                                .background(
+                                                                                        Color(
+                                                                                                0xFF2A2F37
+                                                                                        ),
+                                                                                        RoundedCornerShape(
+                                                                                                8.dp
+                                                                                        )
+                                                                                )
+                                                                                .clickable {
+                                                                                        forceFocus =
+                                                                                                !forceFocus
+                                                                                }
+                                                                                .padding(
+                                                                                        horizontal =
+                                                                                                12.dp,
+                                                                                        vertical =
+                                                                                                8.dp
+                                                                                )
+                                                        ) {
+                                                                Text(
+                                                                        "Forçar Foco",
+                                                                        color = Color.White,
+                                                                        fontSize = 14.sp,
+                                                                        modifier =
+                                                                                Modifier.weight(1f)
+                                                                )
+                                                                Switch(
+                                                                        checked = forceFocus,
+                                                                        onCheckedChange = {
+                                                                                forceFocus = it
+                                                                        },
+                                                                        modifier =
+                                                                                Modifier.scale(
+                                                                                        0.8f
+                                                                                ),
+                                                                        colors =
+                                                                                SwitchDefaults
+                                                                                        .colors(
+                                                                                                checkedThumbColor =
+                                                                                                        Color.White,
+                                                                                                checkedTrackColor =
+                                                                                                        Color(
+                                                                                                                0xFF4A9EFF
+                                                                                                        )
+                                                                                        )
+                                                                )
+                                                        }
+                                                }
                                         }
-                                        Box(modifier = Modifier.weight(1f)) {
-                                                SliderWithLabel(
-                                                        label = "Posição Y",
-                                                        value = posY,
-                                                        range = 0..resolution.second,
-                                                        onValueChange = { posY = it },
-                                                        specialSnap = 135
+
+                                        // Override Theme Dimensions
+                                        Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                        "Dimensões",
+                                                        color = Color(0xFFB0B8C4),
+                                                        fontSize = 12.sp
                                                 )
+                                                Spacer(Modifier.height(4.dp))
+                                                Row(
+                                                        verticalAlignment =
+                                                                Alignment.CenterVertically,
+                                                        modifier =
+                                                                Modifier.fillMaxWidth()
+                                                                        .background(
+                                                                                Color(0xFF2A2F37),
+                                                                                RoundedCornerShape(
+                                                                                        8.dp
+                                                                                )
+                                                                        )
+                                                                        .clickable {
+                                                                                overrideThemeDimensions =
+                                                                                        !overrideThemeDimensions
+                                                                        }
+                                                                        .padding(
+                                                                                horizontal = 12.dp,
+                                                                                vertical = 8.dp
+                                                                        )
+                                                ) {
+                                                        Text(
+                                                                "Override de Dimensões",
+                                                                color = Color.White,
+                                                                fontSize = 14.sp,
+                                                                modifier = Modifier.weight(1f)
+                                                        )
+                                                        Switch(
+                                                                checked = overrideThemeDimensions,
+                                                                onCheckedChange = {
+                                                                        overrideThemeDimensions = it
+                                                                },
+                                                                modifier = Modifier.scale(0.8f),
+                                                                colors =
+                                                                        SwitchDefaults.colors(
+                                                                                checkedThumbColor =
+                                                                                        Color.White,
+                                                                                checkedTrackColor =
+                                                                                        Color(
+                                                                                                0xFF4A9EFF
+                                                                                        )
+                                                                        )
+                                                        )
+                                                }
                                         }
                                 }
 
-                                // Size sliders
-                                Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                        Box(modifier = Modifier.weight(1f)) {
-                                                SliderWithLabel(
-                                                        label = "Largura",
-                                                        value = sizeW,
-                                                        range = 100..resolution.first,
-                                                        onValueChange = { sizeW = it }
+                                if (overrideThemeDimensions || selectedDisplay.id != 3) {
+                                        // Show sliders if explicitly overriding OR if it's NOT
+                                        // Display 3
+                                        // (Display 3 defaults to theme dimensions unless overriden)
+                                        Column(
+                                                modifier =
+                                                        Modifier.fillMaxWidth().padding(top = 4.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                                // Resolution info
+                                                Text(
+                                                        "Resolução: ${resolution.first} x ${resolution.second} | Pos: $posX,$posY",
+                                                        color = Color(0xFF808080),
+                                                        fontSize = 11.sp
                                                 )
-                                        }
-                                        Box(modifier = Modifier.weight(1f)) {
-                                                SliderWithLabel(
-                                                        label = "Altura",
-                                                        value = sizeH,
-                                                        range = 100..resolution.second,
-                                                        onValueChange = { sizeH = it }
-                                                )
+
+                                                // Position sliders
+                                                Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement =
+                                                                Arrangement.spacedBy(16.dp)
+                                                ) {
+                                                        Box(modifier = Modifier.weight(1f)) {
+                                                                SliderWithLabel(
+                                                                        label = "Posição X",
+                                                                        value = posX,
+                                                                        range = 0..resolution.first,
+                                                                        onValueChange = {
+                                                                                posX = it
+                                                                        }
+                                                                )
+                                                        }
+                                                        Box(modifier = Modifier.weight(1f)) {
+                                                                SliderWithLabel(
+                                                                        label = "Posição Y",
+                                                                        value = posY,
+                                                                        range =
+                                                                                0..resolution
+                                                                                                .second,
+                                                                        onValueChange = {
+                                                                                posY = it
+                                                                        },
+                                                                        specialSnap = 135
+                                                                )
+                                                        }
+                                                }
+
+                                                // Size sliders
+                                                Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement =
+                                                                Arrangement.spacedBy(16.dp)
+                                                ) {
+                                                        Box(modifier = Modifier.weight(1f)) {
+                                                                SliderWithLabel(
+                                                                        label = "Largura",
+                                                                        value = sizeW,
+                                                                        range =
+                                                                                100..resolution
+                                                                                                .first,
+                                                                        onValueChange = {
+                                                                                sizeW = it
+                                                                        }
+                                                                )
+                                                        }
+                                                        Box(modifier = Modifier.weight(1f)) {
+                                                                SliderWithLabel(
+                                                                        label = "Altura",
+                                                                        value = sizeH,
+                                                                        range =
+                                                                                100..resolution
+                                                                                                .second,
+                                                                        onValueChange = {
+                                                                                sizeH = it
+                                                                        }
+                                                                )
+                                                        }
+                                                }
                                         }
                                 }
 
@@ -5588,48 +5623,85 @@ fun DisplayAppConfigDialog(
                                                                                 .padding(4.dp),
                                                                 contentAlignment = Alignment.Center
                                                         ) {
-                                                                Icon(
-                                                                        imageVector =
-                                                                                when (id) {
-                                                                                        "nav" ->
-                                                                                                Icons.Default
-                                                                                                        .Place
-                                                                                        "music" ->
-                                                                                                Icons.Default
-                                                                                                        .PlayArrow
-                                                                                        "video" ->
-                                                                                                Icons.Default
-                                                                                                        .Movie
-                                                                                        "settings" ->
-                                                                                                Icons.Default
-                                                                                                        .Settings
-                                                                                        "haval" ->
-                                                                                                Icons.Default
-                                                                                                        .DirectionsCar
-                                                                                        "game" ->
-                                                                                                Icons.Default
-                                                                                                        .SportsEsports
-                                                                                        "tv" ->
-                                                                                                Icons.Default
-                                                                                                        .Tv
-                                                                                        "phone" ->
-                                                                                                Icons.Default
-                                                                                                        .Phone
-                                                                                        "chat" ->
-                                                                                                Icons.Default
-                                                                                                        .Chat
-                                                                                        "map_alt" ->
-                                                                                                Icons.Default
-                                                                                                        .Map
-                                                                                        else ->
-                                                                                                Icons.Default
-                                                                                                        .Android
-                                                                                },
-                                                                        contentDescription = null,
-                                                                        tint = Color.White,
-                                                                        modifier =
-                                                                                Modifier.size(24.dp)
-                                                                )
+                                                                if (id == "youtube" ||
+                                                                                id ==
+                                                                                        "youtube_music" ||
+                                                                                id == "gwm"
+                                                                ) {
+                                                                        Image(
+                                                                                painter =
+                                                                                        painterResource(
+                                                                                                id =
+                                                                                                        when (id
+                                                                                                        ) {
+                                                                                                                "youtube" ->
+                                                                                                                        R.drawable
+                                                                                                                                .ic_youtube_default
+                                                                                                                "youtube_music" ->
+                                                                                                                        R.drawable
+                                                                                                                                .ic_youtube_music_default
+                                                                                                                "gwm" ->
+                                                                                                                        R.drawable
+                                                                                                                                .ic_gwm
+                                                                                                                else ->
+                                                                                                                        R.drawable
+                                                                                                                                .ic_youtube_default
+                                                                                                        }
+                                                                                        ),
+                                                                                contentDescription =
+                                                                                        null,
+                                                                                modifier =
+                                                                                        Modifier.size(
+                                                                                                32.dp
+                                                                                        )
+                                                                        )
+                                                                } else {
+                                                                        Icon(
+                                                                                imageVector =
+                                                                                        when (id) {
+                                                                                                "nav" ->
+                                                                                                        Icons.Default
+                                                                                                                .Place
+                                                                                                "music" ->
+                                                                                                        Icons.Default
+                                                                                                                .PlayArrow
+                                                                                                "video" ->
+                                                                                                        Icons.Default
+                                                                                                                .Movie
+                                                                                                "settings" ->
+                                                                                                        Icons.Default
+                                                                                                                .Settings
+                                                                                                "haval" ->
+                                                                                                        Icons.Default
+                                                                                                                .DirectionsCar
+                                                                                                "game" ->
+                                                                                                        Icons.Default
+                                                                                                                .SportsEsports
+                                                                                                "tv" ->
+                                                                                                        Icons.Default
+                                                                                                                .Tv
+                                                                                                "phone" ->
+                                                                                                        Icons.Default
+                                                                                                                .Phone
+                                                                                                "chat" ->
+                                                                                                        Icons.Default
+                                                                                                                .Chat
+                                                                                                "map_alt" ->
+                                                                                                        Icons.Default
+                                                                                                                .Map
+                                                                                                else ->
+                                                                                                        Icons.Default
+                                                                                                                .Android
+                                                                                        },
+                                                                                contentDescription =
+                                                                                        null,
+                                                                                tint = Color.White,
+                                                                                modifier =
+                                                                                        Modifier.size(
+                                                                                                24.dp
+                                                                                        )
+                                                                        )
+                                                                }
                                                         }
                                                 }
                                         }
@@ -5751,24 +5823,145 @@ fun DisplayAppConfigDialog(
 
         if (showAppPicker) {
                 AppPickerDialog(
+                        alreadyConfigured = configuredPackages,
                         onDismiss = { showAppPicker = false },
                         onAppSelected = { app ->
-                                selectedApp = app
-                                showAppPicker = false
-                                // Auto-launch full screen on target display for visual reference
-                                previewActive = true
-                                scope.launch {
-                                        DisplayAppLauncher.launchApp(
-                                                DisplayAppConfig(
-                                                        packageName = app.packageName,
-                                                        activityName = app.activityName,
-                                                        displayId = selectedDisplay.id,
-                                                        x = posX,
-                                                        y = posY,
-                                                        width = sizeW,
-                                                        height = sizeH
+                                if (app.packageName == "com.ts.androidauto.app" || app.packageName == "com.ts.carplay.app") {
+                                        showInterconnectionConfirmDialog = app
+                                        showAppPicker = false
+                                } else {
+                                        selectedApp = app
+                                        showAppPicker = false
+                                        // Auto-launch full screen on target display for visual reference
+                                        previewActive = true
+                                        scope.launch {
+                                                DisplayAppLauncher.launchApp(
+                                                        DisplayAppConfig(
+                                                                packageName = app.packageName,
+                                                                activityName = app.activityName,
+                                                                displayId = selectedDisplay.id,
+                                                                x = posX,
+                                                                y = posY,
+                                                                width = sizeW,
+                                                                height = sizeH
+                                                        )
                                                 )
-                                        )
+                                        }
+                                }
+                        }
+                )
+        }
+
+        if (showInterconnectionConfirmDialog != null) {
+                val app = showInterconnectionConfirmDialog!!
+                AlertDialog(
+                        onDismissRequest = { showInterconnectionConfirmDialog = null },
+                        containerColor = Color(0xFF1E2228),
+                        titleContentColor = Color.White,
+                        textContentColor = Color.White,
+                        title = {
+                                Text(
+                                        text = "Aviso de Compatibilidade",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                )
+                        },
+                        text = {
+                                Column(
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                        if (app.packageName == "com.ts.androidauto.app") {
+                                                Text(
+                                                        text = "O suporte ao Android Auto é experimental e possui algumas limitações importantes:",
+                                                        color = Color(0xFFB0B8C4),
+                                                        fontSize = 13.sp,
+                                                        lineHeight = 18.sp
+                                                )
+                                                Column(
+                                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                                        modifier = Modifier.padding(start = 4.dp)
+                                                ) {
+                                                        Row(
+                                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                                verticalAlignment = Alignment.Top
+                                                        ) {
+                                                                Text("•", color = Color(0xFF4A9EFF), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                                Text(
+                                                                        text = "O conteúdo do Android Auto não se redimensiona, apenas é recortado (crop).",
+                                                                        color = Color(0xFFB0B8C4),
+                                                                        fontSize = 12.sp,
+                                                                        lineHeight = 16.sp
+                                                                )
+                                                        }
+                                                        Row(
+                                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                                verticalAlignment = Alignment.Top
+                                                        ) {
+                                                                Text("•", color = Color(0xFF4A9EFF), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                                Text(
+                                                                        text = "Ao clicar em qualquer lugar na MMI, o Android Auto perde o foco e a tela fica preta. Temos uma solução alternativa para tentar restaurar o foco automaticamente, mas ela pode falhar às vezes, exigindo que você clique no ícone do Android Auto no carro para restaurar seu foco.",
+                                                                        color = Color(0xFFB0B8C4),
+                                                                        fontSize = 12.sp,
+                                                                        lineHeight = 16.sp
+                                                                )
+                                                        }
+                                                }
+                                                Text(
+                                                        text = "Deseja prosseguir assim mesmo?",
+                                                        color = Color(0xFFB0B8C4),
+                                                        fontSize = 13.sp,
+                                                        lineHeight = 18.sp
+                                                )
+                                        } else {
+                                                Text(
+                                                        text = "O suporte ao Apple CarPlay ainda não foi testado nesta versão e não garantimos seu correto funcionamento. Tem certeza que deseja continuar?",
+                                                        color = Color(0xFFB0B8C4),
+                                                        fontSize = 13.sp,
+                                                        lineHeight = 18.sp
+                                                )
+                                        }
+                                }
+                        },
+                        confirmButton = {
+                                Button(
+                                        onClick = {
+                                                selectedApp = app
+                                                showInterconnectionConfirmDialog = null
+                                                if (app.packageName == "com.ts.androidauto.app") {
+                                                        forceFocus = true
+                                                }
+                                                // Auto-launch full screen on target display for visual reference
+                                                previewActive = true
+                                                scope.launch {
+                                                        DisplayAppLauncher.launchApp(
+                                                                DisplayAppConfig(
+                                                                        packageName = app.packageName,
+                                                                        activityName = app.activityName,
+                                                                        displayId = selectedDisplay.id,
+                                                                        x = posX,
+                                                                        y = posY,
+                                                                        width = sizeW,
+                                                                        height = sizeH
+                                                                )
+                                                        )
+                                                }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFF4A9EFF)
+                                        ),
+                                        shape = RoundedCornerShape(8.dp)
+                                ) {
+                                        Text("Prosseguir", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                }
+                        },
+                        dismissButton = {
+                                TextButton(
+                                        onClick = {
+                                                showInterconnectionConfirmDialog = null
+                                        }
+                                ) {
+                                        Text("Abortar", color = Color(0xFFFF4B4B), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
                         }
                 )
@@ -5899,9 +6092,92 @@ fun SliderWithLabel(
 }
 
 @Composable
-fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> Unit) {
+fun AppPickerItem(app: InstalledAppInfo, onClick: (InstalledAppInfo) -> Unit) {
+        Column(
+                modifier =
+                        Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF2A2F37).copy(alpha = 0.5f))
+                                .clickable { onClick(app) }
+                                .padding(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+                if (app.icon != null) {
+                        AsyncImage(
+                                model = app.icon,
+                                contentDescription = app.label,
+                                modifier = Modifier.size(44.dp),
+                                contentScale = ContentScale.Fit
+                        )
+                } else {
+                        when {
+                                app.packageName.contains("androidauto") -> {
+                                        AsyncImage(
+                                                model = R.drawable.ic_android_auto_default,
+                                                contentDescription = app.label,
+                                                modifier = Modifier.size(44.dp),
+                                                contentScale = ContentScale.Fit
+                                        )
+                                }
+                                app.packageName.contains("carplay") -> {
+                                        AsyncImage(
+                                                model = R.drawable.ic_carplay_default,
+                                                contentDescription = app.label,
+                                                modifier = Modifier.size(44.dp),
+                                                contentScale = ContentScale.Fit
+                                        )
+                                }
+                                else -> {
+                                        Icon(
+                                                imageVector = Icons.Default.Apps,
+                                                contentDescription = app.label,
+                                                modifier = Modifier.size(44.dp),
+                                                tint = Color.White
+                                        )
+                                }
+                        }
+
+                }
+
+                Text(
+                        text = app.label,
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        maxLines = 2,
+                        minLines = 2,
+                        lineHeight = 12.sp,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                )
+        }
+}
+
+@Composable
+fun AppPickerDialog(
+        alreadyConfigured: Set<String> = emptySet(),
+        onDismiss: () -> Unit,
+        onAppSelected: (InstalledAppInfo) -> Unit
+) {
         val context = LocalContext.current
         var searchQuery by remember { mutableStateOf("") }
+        val predefinedApps = remember {
+                DisplayAppLauncher.PREDEFINED_APPS.map { config ->
+                        val resolved =
+                                DisplayAppLauncher.resolveAppInfo(
+                                        context,
+                                        config.packageName,
+                                        config.customName
+                                )
+                        InstalledAppInfo(
+                                packageName = config.packageName,
+                                activityName = config.activityName,
+                                label = resolved.label,
+                                icon = resolved.icon
+                        )
+                }
+        }
+
         val installedApps = remember {
                 val pm = context.packageManager
                 val intent =
@@ -5950,7 +6226,7 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                 modifier =
                                         Modifier.fillMaxWidth()
                                                 .wrapContentHeight()
-                                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                                .padding(horizontal = 16.dp, vertical = 7.dp)
                         ) {
                                 Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -6157,10 +6433,20 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
                                         }
                                 }
 
+                                val allAvailableApps =
+                                        remember(predefinedApps, installedApps, alreadyConfigured) {
+                                                val combined = predefinedApps + installedApps
+                                                if (alreadyConfigured.isNotEmpty()) {
+                                                        combined.filter { it.packageName !in alreadyConfigured }
+                                                } else {
+                                                        combined
+                                                }
+                                        }
+
                                 val filteredApps =
-                                        if (searchQuery.isBlank()) installedApps
+                                        if (searchQuery.isBlank()) allAvailableApps
                                         else
-                                                installedApps.filter {
+                                                allAvailableApps.filter {
                                                         it.label.contains(
                                                                 searchQuery,
                                                                 ignoreCase = true
@@ -6173,51 +6459,13 @@ fun AppPickerDialog(onDismiss: () -> Unit, onAppSelected: (InstalledAppInfo) -> 
 
                                 LazyVerticalGrid(
                                         columns = GridCells.Adaptive(minSize = 80.dp),
-                                        modifier = Modifier.heightIn(max = 350.dp),
-                                        contentPadding = PaddingValues(0.dp),
+                                        modifier = Modifier.heightIn(max = 315.dp),
+                                        contentPadding = PaddingValues(top = 8.dp),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                         items(filteredApps) { app ->
-                                                Column(
-                                                        modifier =
-                                                                Modifier.fillMaxWidth()
-                                                                        .clip(
-                                                                                RoundedCornerShape(
-                                                                                        8.dp
-                                                                                )
-                                                                        )
-                                                                        .background(
-                                                                                Color(0xFF2A2F37)
-                                                                                        .copy(
-                                                                                                alpha =
-                                                                                                        0.5f
-                                                                                        )
-                                                                        )
-                                                                        .clickable {
-                                                                                onAppSelected(app)
-                                                                        }
-                                                                        .padding(8.dp),
-                                                        horizontalAlignment =
-                                                                Alignment.CenterHorizontally,
-                                                        verticalArrangement =
-                                                                Arrangement.spacedBy(4.dp)
-                                                ) {
-                                                        AsyncImage(
-                                                                model = app.icon,
-                                                                contentDescription = app.label,
-                                                                modifier = Modifier.size(44.dp),
-                                                                contentScale = ContentScale.Fit
-                                                        )
-                                                        Text(
-                                                                text = app.label,
-                                                                color = Color.White,
-                                                                fontSize = 10.sp,
-                                                                maxLines = 1,
-                                                                overflow = TextOverflow.Ellipsis,
-                                                                textAlign = TextAlign.Center
-                                                        )
-                                                }
+                                                AppPickerItem(app, onAppSelected)
                                         }
                                 }
                         }

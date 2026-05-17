@@ -258,7 +258,7 @@ window.control = function (key, value) {
             val = Number(value);
         }
         setState(key, val);
-        // warningActive has its own subscription to render() at line 148, so no need for manual trigger here
+        // warningActive has its own subscription to render() at line 184, so no need for manual trigger here
         logger.leave('window.control');
     } catch (e) {
         console.error('[Error] Bridge control failed for key ' + key + ':', e);

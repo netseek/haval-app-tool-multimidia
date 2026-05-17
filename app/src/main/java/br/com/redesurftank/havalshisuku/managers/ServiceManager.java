@@ -1007,8 +1007,10 @@ public class ServiceManager {
     private void OnDataChanged(String key, String value) {
         Intent broadcastIntent = new Intent("android.intent.haval." + key);
         broadcastIntent.putExtra("value", value);
+        broadcastIntent.setPackage(App.getContext().getPackageName());
         App.getContext().sendBroadcast(broadcastIntent);
         broadcastIntent = new Intent("android.intent.haval." + key + "_" + value);
+        broadcastIntent.setPackage(App.getContext().getPackageName());
         App.getContext().sendBroadcast(broadcastIntent);
         for (IDataChanged listener : new ArrayList<>(dataChangedListeners)) {
             try {
@@ -1780,15 +1782,7 @@ public class ServiceManager {
     public boolean isMainScreenOn() {
         try {
             String engineState = getData(CarConstants.CAR_BASIC_ENGINE_STATE.getValue());
-            if (engineState == null || engineState.isEmpty()) {
-                Log.w(TAG, "[HavalDev] Engine state unavailable during visibility check; defaulting main screen to ON");
-                return true;
-            }
-
-            return !engineState.equals("-1") &&
-                    !engineState.equals("10") &&
-                    !engineState.equals("14") &&
-                    !engineState.equals("15");
+            return br.com.redesurftank.havalshisuku.models.EngineState.isMainScreenOn(engineState);
         } catch (Exception e) {
             Log.w(TAG, "[HavalDev] Failed to read engine state during visibility check; defaulting main screen to ON", e);
             return true;

@@ -13,16 +13,16 @@ export function initWarningHandler() {
         const warnings = state.warnings || {};
         const newWarnings = Object.assign({}, warnings, { [key]: value });
         stateManager.set('warnings', newWarnings);
-
+        
         let hasCriticalWarning = false;
-
+        
         for (const [k, v] of Object.entries(newWarnings)) {
             const isThisActive = v !== "0" && v !== "{0,0,0,0}" && v !== "{0,0,0,0,0}" && v !== "" && v !== "false";
-
+            
             if (isThisActive && !VISUAL_ONLY_KEYS.includes(k)) {
                 hasCriticalWarning = true;
             }
-
+            
             if (k === "car.ipk_info.bsd_lca_warning_reqleft") {
                 stateManager.set('bsdLeft', isThisActive);
             }
