@@ -438,7 +438,10 @@ public class ServiceManager {
                                 key = Screen.Key.BACK_LONG;
                                 break;
                         }
-                        if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                        if (key != null) {
+                            MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                            dispatchServiceManagerEvent(ServiceManagerEventType.RAW_KEY_EVENT, key);
+                        }
                         if (key == Screen.Key.BACK) {
                             dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
                         }
@@ -558,7 +561,7 @@ public class ServiceManager {
 
     }
 
-    private void handleSteeringWheelCustomButton(String string, int button) {
+    public void handleSteeringWheelCustomButton(String string, int button) {
         SteeringWheelCustomActionType action = SteeringWheelCustomActionType.Companion.fromKey(string);
         if (action == null || action == SteeringWheelCustomActionType.DEFAULT) {
             return;
