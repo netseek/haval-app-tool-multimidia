@@ -2193,13 +2193,6 @@ canvas.graph-chart {
   pointer-events: none !important;
 }
 
-/* Hard-stop any Esportivo-only overlays/widgets outside Esportivo mode */
-#app:not(.display-esportivo) .dashboard-speed-esportivo-widget,
-#app:not(.display-esportivo) .dashboard-sport-fixed-overlay {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-}
 
 /* Cluster Disabled Mode */
 .cluster-disabled .dashboard-speed-container,

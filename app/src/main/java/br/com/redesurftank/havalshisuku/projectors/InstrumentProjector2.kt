@@ -134,6 +134,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                 )
                 ) {
                     ensureUi {
+
+
                         if (key == SharedPreferencesKeys.ENABLE_INSTRUMENT_ODOMETER_AND_REVISION.key
                         ) {
                             val enabled = preferences.getBoolean(key, true)
@@ -581,6 +583,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             parent.addView(webView)
         }
     }
+
 
     private fun updateValuesWebView() {
         val sm = ServiceManager.getInstance()
