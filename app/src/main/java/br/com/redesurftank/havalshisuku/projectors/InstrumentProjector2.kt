@@ -82,6 +82,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     private var hasAutoLaunched = false
+    private var lastMenuNav: String? = null
     private val lastAppliedConfigs =
             mutableMapOf<String, br.com.redesurftank.havalshisuku.models.DisplayAppConfig>()
 
@@ -170,6 +171,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                         key == SharedPreferencesKeys.VIRTUAL_CLUSTER_THEME.key
                         ) {
                             Log.d(TAG, "Theme changed, reloading WebView")
+                            lastMenuNav = null // Reset menu selection on theme change since new theme may have different menu structure
                             webView?.loadDataWithBaseURL(
                                     getThemeBaseUrl(),
                                     readAppContent(outerContext),
@@ -285,6 +287,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         }
                         ServiceManagerEventType.MENU_ITEM_NAVIGATION -> {
                             val menuNav = args[0] as String
+                            lastMenuNav = menuNav
                             evaluateJsIfReady(webView, "control('menuNav', '$menuNav')")
                             evaluateJsIfReady(webView, "focus('$menuNav')")
                         }
@@ -633,6 +636,21 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
                                             // Prime the warning state once so the UI reflects the current car warnings.
                                             syncInitialWarnings()
+
+                                            // Re-initialize virtual cluster visibility and appInDash
+                                            updateVirtualClusterVisibility()
+
+                                            // Re-initialize active screen if any to match logical UI state
+                                            val currentScreen = MainUiManager.getInstance().currentScreen
+                                            if (currentScreen != null) {
+                                                evaluateJsIfReady(wv, "showScreen('${currentScreen.jsName}')")
+                                            }
+
+                                            // Re-initialize last selected menu if active
+                                            lastMenuNav?.let { menuNav ->
+                                                evaluateJsIfReady(wv, "control('menuNav', '$menuNav')")
+                                                evaluateJsIfReady(wv, "focus('$menuNav')")
+                                            }
 
                                             // Inject Heartbeat
                                             wv.evaluateJavascript(

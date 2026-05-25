@@ -73,4 +73,9 @@ public class MainUiManager {
         else if (this.currentCard == 3) this.currentScreenCard3.processKey(key);
     }
 
+    public Screen getCurrentScreen() {
+        if (this.currentCard == 1) return this.currentScreenCard1;
+        if (this.currentCard == 3) return this.currentScreenCard3;
+        return null;
+    }
 }

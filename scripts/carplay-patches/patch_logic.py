@@ -163,7 +163,18 @@ def apply_activity_patches(path):
     content = read_file(path)
     count = 0
 
+    # A0. Make mFragment public to prevent IllegalAccessError inside Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayActivity$1;
+    if ".field public mFragment:Lcom/ts/carplay/app/ui/display/view/BaseFragment;" in content:
+        print("  [SKIP] mFragment field already public")
+    else:
+        target = ".field private mFragment:Lcom/ts/carplay/app/ui/display/view/BaseFragment;"
+        replacement = ".field public mFragment:Lcom/ts/carplay/app/ui/display/view/BaseFragment;"
+        content, ok = patch_direct(content, target, replacement, "CarPlayDisplayActivity: make mFragment public to prevent IllegalAccessError")
+        if ok:
+            count += 1
+
     # A. onPause: view_state to "foreground"
+
     if CARPLAY_ONPAUSE_SENTINEL in content:
         print("  [SKIP] onPause view_state already patched to foreground")
     else:
