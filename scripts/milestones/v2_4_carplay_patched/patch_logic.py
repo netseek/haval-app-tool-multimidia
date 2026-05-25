@@ -370,15 +370,25 @@ def apply_fragment_patches(path):
         print("  [OK]   updateDisplayParams method injected")
         count += 1
 
-    # C. Inject mLastWidth and mLastHeight fields
+    # C. Inject mLastWidth and mLastHeight fields + make mSurfaceView public to avoid IllegalAccessError
     if "mLastWidth" in content:
         print("  [SKIP] mLastWidth / mLastHeight fields already injected")
-    else:
-        target = ".field private mSurfaceView:Landroid/view/SurfaceView;"
-        replacement = ".field private mSurfaceView:Landroid/view/SurfaceView;\n\n.field public mLastHeight:I\n\n.field public mLastWidth:I"
-        content, ok = patch_direct(content, target, replacement, "CarPlayDisplayFragment: inject mLastWidth and mLastHeight fields")
+        # Ensure mSurfaceView is public if it was not already
+        content, ok = patch_direct(
+            content,
+            ".field private mSurfaceView:Landroid/view/SurfaceView;",
+            ".field public mSurfaceView:Landroid/view/SurfaceView;",
+            "CarPlayDisplayFragment: make mSurfaceView public (already has mLastWidth)"
+        )
         if ok:
             count += 1
+    else:
+        target = ".field private mSurfaceView:Landroid/view/SurfaceView;"
+        replacement = ".field public mSurfaceView:Landroid/view/SurfaceView;\n\n.field public mLastHeight:I\n\n.field public mLastWidth:I"
+        content, ok = patch_direct(content, target, replacement, "CarPlayDisplayFragment: inject mLastWidth / mLastHeight and make mSurfaceView public")
+        if ok:
+            count += 1
+
 
     write_file(path, content)
     return count

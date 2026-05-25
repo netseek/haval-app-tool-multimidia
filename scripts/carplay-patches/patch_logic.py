@@ -317,10 +317,35 @@ def apply_activity_patches(path):
         if ok_equals:
             count += 1
 
-    # F. onResume loop trigger
+    # F. onResume loop trigger and mHasShown reset
     if CARPLAY_RESUME_LOOP_SENTINEL in content:
         print("  [SKIP] onResume loop trigger already patched")
     else:
+        # 1. Reset mHasShown to false at the start of onResume
+        pattern_start = r"(\.method protected onResume\(\)V\s*\n\s*\.locals (\d+)\s*\n\s*(?:\s*\.line\s+\d+\s*\n)?\s*invoke-super \{p0\}, Landroid/app/Activity;->onResume\(\)V\s*\n)"
+
+        def adjust_locals_and_reset(match):
+            prefix, count = match.group(1), int(match.group(2))
+            new_count = max(count, 3)
+            return f".method protected onResume()V\n    .locals {new_count}\n    invoke-super {{p0}}, Landroid/app/Activity;->onResume()V\n" + r"""
+    # Reset mHasShown to false on resume to allow stream re-activation
+    iget-object v0, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayActivity;->mFragment:Lcom/ts/carplay/app/ui/display/view/BaseFragment;
+
+    instance-of v1, v0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;
+
+    if-eqz v1, :cond_skip_resume_reset
+
+    check-cast v0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;
+
+    const/4 v1, 0x0
+
+    iput-boolean v1, v0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->mHasShown:Z
+
+    :cond_skip_resume_reset
+"""
+        content, ok_start = patch_regex(content, pattern_start, adjust_locals_and_reset, "onResume: reset mHasShown to false")
+
+        # 2. Trigger invalidation loop at the end of onResume
         pattern = r"(\.method protected onResume\(\)V.*?sendBroadcast\(Landroid/content/Intent;\)V\s*\n)"
         replacement = r"\1\n    " + CARPLAY_RESUME_LOOP_SENTINEL + r"""
     # Trigger continuous invalidation loop
@@ -336,9 +361,10 @@ def apply_activity_patches(path):
 
     :cond_skip_loop_resume
 """
-        content, ok = patch_regex(content, pattern, replacement, "onResume: trigger continuous invalidation loop")
-        if ok:
+        content, ok_end = patch_regex(content, pattern, replacement, "onResume: trigger continuous invalidation loop")
+        if ok_start or ok_end:
             count += 1
+
 
     # G. showFragment loop trigger
     if CARPLAY_SHOW_FRAGMENT_LOOP_SENTINEL in content:
@@ -519,15 +545,25 @@ def apply_fragment_patches(path):
         print("  [OK]   updateDisplayParams method injected")
         count += 1
 
-    # C. Inject mLastWidth and mLastHeight fields
+    # C. Inject mLastWidth and mLastHeight fields + make mSurfaceView public to avoid IllegalAccessError
     if "mLastWidth" in content:
         print("  [SKIP] mLastWidth / mLastHeight fields already injected")
-    else:
-        target = ".field private mSurfaceView:Landroid/view/SurfaceView;"
-        replacement = ".field private mSurfaceView:Landroid/view/SurfaceView;\n\n.field public mLastHeight:I\n\n.field public mLastWidth:I"
-        content, ok = patch_direct(content, target, replacement, "CarPlayDisplayFragment: inject mLastWidth and mLastHeight fields")
+        # Ensure mSurfaceView is public if it was not already
+        content, ok = patch_direct(
+            content,
+            ".field private mSurfaceView:Landroid/view/SurfaceView;",
+            ".field public mSurfaceView:Landroid/view/SurfaceView;",
+            "CarPlayDisplayFragment: make mSurfaceView public (already has mLastWidth)"
+        )
         if ok:
             count += 1
+    else:
+        target = ".field private mSurfaceView:Landroid/view/SurfaceView;"
+        replacement = ".field public mSurfaceView:Landroid/view/SurfaceView;\n\n.field public mLastHeight:I\n\n.field public mLastWidth:I"
+        content, ok = patch_direct(content, target, replacement, "CarPlayDisplayFragment: inject mLastWidth / mLastHeight and make mSurfaceView public")
+        if ok:
+            count += 1
+
 
     # D. Make mDisplaySurface and mHasShown public
     if ".field public mDisplaySurface:Landroid/view/Surface;" in content:
