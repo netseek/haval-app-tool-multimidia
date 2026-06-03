@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
 import android.os.SystemClock;
@@ -228,6 +229,50 @@ public class ServiceManager {
     private IInputService inputService;
     private ServiceConnection inputServiceConnection;
     private IConnectivityManager connectivityManager;
+    // --- Steering-wheel media keys -> MediaCenter IPlayService (fix AA NEXT/PREV) ---
+    private IBinder mediaCenterPoolBinder;   // IMediaCenterService (BinderPool)
+    private IBinder playServiceBinder;       // IPlayService (queryBinder code 2)
+    private ServiceConnection mediaCenterConnection;
+    // Dedupe key handling per physical press: DOWN and UP of one press share getDownTime(),
+    // while distinct presses have distinct downTimes. This lets genuine rapid double-presses
+    // through at their true speed (needed for AA "previous" = restart, then 2nd press = prev),
+    // unlike a fixed time throttle which would swallow them.
+    private long lastHandledKeyDownTime = -1;
+    private long lastHandledKeyDownTimeFallbackMs = 0;
+    private static final String MC_PKG = "com.beantechs.mediacenter";
+    private static final String MC_SERVICE = "com.beantechs.mediacenter.mediacentermodel.MediaCenterService";
+    private static final String MC_DESC = "com.beantechs.mediacenter.mediacentermodel.IMediaCenterService";
+    private static final String PLAY_DESC = "com.beantechs.mediacenter.mediacentermodel.IPlayService";
+    private static final int TXN_QUERY_BINDER = 1;          // IMediaCenterService.queryBinder
+    private static final int QUERY_CODE_PLAY_SERVICE = 2;   // -> IPlayServiceImpl
+    private static final int TXN_GET_CURRENT_AUDIO_SOURCE = 0x1a; // IPlayService
+    private static final int TXN_PLAY_NEXT = 0x1e;
+    private static final int TXN_PLAY_PREV = 0x1f;
+    private static final int TXN_GET_PLAY_STATE = 0x13;     // IPlayService.getPlayStateBySource -> MediaPlayStateInfo
+    private static final int TXN_PAUSE_MEDIA = 0x1b;        // IPlayService.pauseMediaBySource
+    private static final int TXN_RESUME_MEDIA = 0x1c;       // IPlayService.resumeMediaBySource
+    private static final int MEDIA_STATE_PLAYING = 3;       // MediaPlayStateInfo.STATE_PLAYING
+    // --- Direct bridge to the patched AA projection's LinkCommand AIDL (fix AA PREVIOUS) ---
+    // Proven on-car (logs + eyes): the head-unit MediaCenter forwards playNextBySource(402) to the
+    // projection's LinkCommand.next() (logs "AAPLinkController next" + sendNextKey, track changes) and
+    // pauseMediaBySource(402) to LinkCommand.pause(), but it SILENTLY DROPS playPreviousBySource(402):
+    // ok=true is returned yet the projection never logs "previous"/sendPreviousKey and the track never
+    // moves. The projection itself handles previous symmetrically to next (LinkController.previous ->
+    // AapPhoneManager.previous -> AapController.previous -> HandleInputEvent.sendPreviousKey ->
+    // InputSource KEYCODE_MEDIA_PREVIOUS). So we bypass MediaCenter for AA previous and invoke the
+    // projection's LinkCommand.previous() directly -- the exact entry NEXT reaches successfully.
+    private static final String AA_PKG = "com.ts.androidauto.projectionservice";
+    private static final String AA_SERVICE = "com.ts.androidauto.projectionservice.AndroidAutoService";
+    private static final String AA_ACTION = "com.ts.androidauto.action.AndroidAutoService";
+    private static final String AA_LINKCMD_DESC = "com.ts.androidauto.sdk.aidl.LinkCommand";
+    private static final int TXN_LINK_NEXT = 0x18;          // LinkCommand.next()
+    private static final int TXN_LINK_PREVIOUS = 0x19;      // LinkCommand.previous()
+    private IBinder aaLinkCommandBinder;
+    private ServiceConnection aaLinkConnection;
+    // Sources BeanInputManager.dispatchKeyEvent deliberately ignores (returns before its
+    // own skip switch), so handling them here cannot double-skip USB/BT/local media.
+    private static final int SOURCE_ANDROID_AUTO = 402;
+    private static final int SOURCE_PHONELINK_403 = 403;
     private boolean isClusterHeartbeatRunning = false;
     private int clusterHeartBeatCount = 0;
     private int clusterCardView = 0;
@@ -308,6 +353,16 @@ public class ServiceManager {
                 context.unbindService(inputServiceConnection);
             }
             inputService = null;
+            if (mediaCenterConnection != null) {
+                try { context.unbindService(mediaCenterConnection); } catch (Exception ignored) {}
+            }
+            if (aaLinkConnection != null) {
+                try { context.unbindService(aaLinkConnection); } catch (Exception ignored) {}
+                aaLinkConnection = null;
+            }
+            aaLinkCommandBinder = null;
+            mediaCenterPoolBinder = null;
+            playServiceBinder = null;
             if (handlerThread != null && handlerThread.isAlive()) {
                 handlerThread.quitSafely();
             }
@@ -337,24 +392,46 @@ public class ServiceManager {
         }
 
         try {
-            IBinder controlBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.intelligentvehiclecontrol"));
+            IBinder rawControlBinder = getSystemService("com.beantechs.intelligentvehiclecontrol");
+            if (rawControlBinder == null) {
+                Log.e(TAG, "IntelligentVehicleControlService raw binder is null");
+                return false;
+            }
+            IBinder controlBinder = new ShizukuBinderWrapper(rawControlBinder);
             if (!controlBinder.pingBinder()) {
                 Log.e(TAG, "IntelligentVehicleControlService binder not alive");
                 return false;
             }
             controlService = IIntelligentVehicleControlService.Stub.asInterface(controlBinder);
 
-            IBinder poolBinder = new ShizukuBinderWrapper(getSystemService("com.beantechs.voice.adapter.VoiceAdapterService"));
+            IBinder rawPoolBinder = getSystemService("com.beantechs.voice.adapter.VoiceAdapterService");
+            if (rawPoolBinder == null) {
+                Log.e(TAG, "VoiceAdapterService raw binder is null");
+                return false;
+            }
+            IBinder poolBinder = new ShizukuBinderWrapper(rawPoolBinder);
             if (!poolBinder.pingBinder()) {
                 Log.e(TAG, "IBinderPool binder not alive");
                 return false;
             }
             IBinderPool pool = IBinderPool.Stub.asInterface(poolBinder);
             IBinder vehicleBinder = pool.queryBinder(6);
+            if (vehicleBinder == null) {
+                Log.e(TAG, "vehicleBinder query returned null");
+                return false;
+            }
             vehicle = IVehicle.Stub.asInterface(new ShizukuBinderWrapper(vehicleBinder));
             IBinder dvrBinder = pool.queryBinder(8);
+            if (dvrBinder == null) {
+                Log.e(TAG, "dvrBinder query returned null");
+                return false;
+            }
             dvr = IDvr.Stub.asInterface(new ShizukuBinderWrapper(dvrBinder));
             IBinder vehicleModelBinder = pool.queryBinder(13);
+            if (vehicleModelBinder == null) {
+                Log.e(TAG, "vehicleModelBinder query returned null");
+                return false;
+            }
             vehicleModel = IVehicleModel.Stub.asInterface(new ShizukuBinderWrapper(vehicleModelBinder));
 
             Intent clusterIntent = new Intent();
@@ -364,9 +441,11 @@ public class ServiceManager {
                 public void callbackMsg(int msgId, ClusterMsgData data) {
                     if (msgId == 133) {
                         int whichCard = data.getIntValue();
-                        clusterCardView = whichCard;
-                        dispatchServiceManagerEvent(ServiceManagerEventType.CLUSTER_CARD_CHANGED, clusterCardView);
-                        Log.w(TAG, "Cluster card changed: " + whichCard);
+                        if (clusterCardView != whichCard) {
+                            clusterCardView = whichCard;
+                            dispatchServiceManagerEvent(ServiceManagerEventType.CLUSTER_CARD_CHANGED, clusterCardView);
+                            Log.w(TAG, "Cluster card changed: " + whichCard);
+                        }
                     } else if (msgId == 134) {
                         if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_INSTRUMENT_CUSTOM_MEDIA_INTEGRATION.getKey(), false)) {
                             if (data.getIntValue() == 2) {
@@ -401,6 +480,17 @@ public class ServiceManager {
             inputListener = new IInputListener.Stub() {
                 @Override
                 public void dispatchKeyEvent(KeyEvent keyEvent) {
+                    switch (keyEvent.getKeyCode()) {
+                        case KeyEvent.KEYCODE_MEDIA_NEXT:     // 87
+                            handleWheelMediaKey(true, keyEvent);
+                            break;
+                        case KeyEvent.KEYCODE_MEDIA_PREVIOUS: // 88
+                            handleWheelMediaKey(false, keyEvent);
+                            break;
+                        case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE: // 85 (wheel ENTER/OK = key.media.enter_short)
+                            handleWheelPlayPause(keyEvent);
+                            break;
+                    }
                     if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_STEERING_WHEEL_CUSTOM_BUTTONS.getKey(), false)) {
                         switch (keyEvent.getKeyCode()) {
                             case 517: handleSteeringWheelCustomButton(sharedPreferences.getString(SharedPreferencesKeys.STEERING_WHEEL_CUSTOM_BUTON_1_ACTION.getKey(), SteeringWheelCustomActionType.DEFAULT.name()), 1); break;
@@ -438,8 +528,17 @@ public class ServiceManager {
                                 key = Screen.Key.BACK_LONG;
                                 break;
                         }
-                        if (key != null) MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                        boolean warningConsumed = false;
                         if (key == Screen.Key.BACK) {
+                            if (ProjectorManager.getInstance().isWarningActiveAndNotDismissed()) {
+                                dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
+                                warningConsumed = true;
+                            }
+                        }
+                        if (key != null && !warningConsumed) {
+                            MainUiManager.getInstance().handleGeneralKeyEvents(key);
+                        }
+                        if (key == Screen.Key.BACK && !warningConsumed) {
                             dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
                         }
                     }
@@ -455,6 +554,26 @@ public class ServiceManager {
             };
             context.bindService(inputIntent, inputServiceConnection, Context.BIND_AUTO_CREATE);
 
+            Intent mediaCenterIntent = new Intent();
+            mediaCenterIntent.setComponent(new ComponentName(MC_PKG, MC_SERVICE));
+            mediaCenterConnection = new ServiceConnection() {
+                @Override
+                public void onServiceConnected(ComponentName name, IBinder service) {
+                    mediaCenterPoolBinder = service;
+                    playServiceBinder = queryPlayServiceBinder(service);
+                    Log.w(TAG, "[WheelMedia] MediaCenterService connected, playServiceBinder=" + playServiceBinder);
+                }
+                @Override public void onServiceDisconnected(ComponentName name) {
+                    mediaCenterPoolBinder = null;
+                    playServiceBinder = null;
+                }
+            };
+            try {
+                context.bindService(mediaCenterIntent, mediaCenterConnection, Context.BIND_AUTO_CREATE);
+            } catch (Exception e) {
+                Log.e(TAG, "[WheelMedia] bind MediaCenterService failed", e);
+            }
+
             listener = new IListener.Stub() {
                 @Override public void onDataChanged(String key, String value) { OnDataChanged(key, value); }
             };
@@ -464,7 +583,12 @@ public class ServiceManager {
             controlService.registerDataChangedListener(context.getPackageName(), listener);
             controlService.addListenerKey(App.getContext().getPackageName(), getCombinedKeys());
 
-            IBinder connectivityBinder = new ShizukuBinderWrapper(getSystemService(Context.CONNECTIVITY_SERVICE));
+            IBinder rawConnectivityBinder = getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (rawConnectivityBinder == null) {
+                Log.e(TAG, "ConnectivityService raw binder is null");
+                return false;
+            }
+            IBinder connectivityBinder = new ShizukuBinderWrapper(rawConnectivityBinder);
             connectivityManager = IConnectivityManager.Stub.asInterface(connectivityBinder);
 
             IntentFilter bluetoothFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
@@ -511,6 +635,7 @@ public class ServiceManager {
             if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_FRIDA_HOOKS.getKey(), false)) pendingTasks.add(this::initializeFrida);
             ensureSteeringWheelButtonIntegration();
             ensureSystemApps();
+            ensureDebloatedSystemApps();
             TripConsistencyManager.Companion.getInstance().initialize();
         } catch (RemoteException e) {
             Log.e(TAG, "Error during initialization", e);
@@ -758,6 +883,228 @@ public class ServiceManager {
             return value >= 0 && value < 99;
         } catch (NumberFormatException e) {
             return false;
+        }
+    }
+
+    /**
+     * Steering-wheel NEXT/PREV (keycodes 87/88) do not change tracks while Android Auto is the
+     * active media source: BeanMediaCenter's BeanInputManager.dispatchKeyEvent returns early for
+     * sources 402/403 (it delegates to injectKeyCodeToSystem, which never reaches AA since AA has
+     * no MediaSession). The on-screen touch works because it calls IPlayService.playNextBySource()
+     * directly. Here we replicate that working path: when the active audio source is AA (402/403),
+     * we forward the skip straight to MediaCenter's IPlayService. For any other source we do
+     * nothing, letting BeanInputManager handle it as before (no double-skip).
+     */
+    private void handleWheelMediaKey(boolean next, KeyEvent keyEvent) {
+        if (isDuplicatePress(keyEvent, next ? "NEXT" : "PREV")) return;
+        int src = getCurrentAudioSource();
+        Log.w(TAG, "[WheelMedia] key next=" + next + " currentAudioSource=" + src + " playBinder=" + (playServiceBinder != null));
+        if (src == SOURCE_ANDROID_AUTO || src == SOURCE_PHONELINK_403) {
+            // Keep the AA LinkCommand bound warm so previous is ready (binding is async).
+            if (src == SOURCE_ANDROID_AUTO) ensureAaLinkBound();
+            // For AA (402) previous: MediaCenter drops playPreviousBySource(402) on the floor, so call
+            // the projection's LinkCommand.previous() directly (same entry NEXT reaches via MediaCenter).
+            if (!next && src == SOURCE_ANDROID_AUTO) {
+                if (aaLinkPrevious()) {
+                    Log.w(TAG, "[WheelMedia] AA previous via LinkCommand.previous() ok");
+                    return;
+                }
+                Log.w(TAG, "[WheelMedia] AA previous: LinkCommand not ready, falling back to playPreviousBySource");
+            }
+            boolean ok = playSkipBySource(src, next);
+            Log.w(TAG, "[WheelMedia] forwarded skip to source " + src + " next=" + next + " ok=" + ok);
+        }
+    }
+
+    /**
+     * Bind (lazily) to the patched AA projection service so we can talk to its LinkCommand AIDL. We
+     * only call this once AA is already the active source, so the projection process is alive and
+     * BIND_AUTO_CREATE just attaches to it (it does not start AA out of nowhere / disturb the mount).
+     */
+    private void ensureAaLinkBound() {
+        if (aaLinkCommandBinder != null && aaLinkCommandBinder.isBinderAlive()) return;
+        if (aaLinkConnection == null) {
+            aaLinkConnection = new ServiceConnection() {
+                @Override public void onServiceConnected(ComponentName name, IBinder service) {
+                    aaLinkCommandBinder = service;
+                    Log.w(TAG, "[WheelMedia] AA LinkCommand connected binder=" + service);
+                }
+                @Override public void onServiceDisconnected(ComponentName name) {
+                    aaLinkCommandBinder = null;
+                    Log.w(TAG, "[WheelMedia] AA LinkCommand disconnected");
+                }
+            };
+        }
+        try {
+            Intent i = new Intent(AA_ACTION);
+            i.setComponent(new ComponentName(AA_PKG, AA_SERVICE));
+            boolean req = App.getContext().bindService(i, aaLinkConnection, Context.BIND_AUTO_CREATE);
+            Log.w(TAG, "[WheelMedia] bindService AA LinkCommand requested=" + req);
+        } catch (Exception e) {
+            Log.e(TAG, "[WheelMedia] bind AA LinkCommand failed", e);
+        }
+    }
+
+    /** Invoke LinkCommand.previous() (txn 0x19) directly on the AA projection. Returns true on success. */
+    private boolean aaLinkPrevious() {
+        IBinder b = aaLinkCommandBinder;
+        if (b == null || !b.isBinderAlive()) { aaLinkCommandBinder = null; return false; }
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(AA_LINKCMD_DESC);
+            b.transact(TXN_LINK_PREVIOUS, data, reply, 0);
+            reply.readException();
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "[WheelMedia] aaLinkPrevious failed", e);
+            aaLinkCommandBinder = null;
+            return false;
+        } finally {
+            reply.recycle();
+            data.recycle();
+        }
+    }
+
+    /**
+     * True if this KeyEvent is a duplicate of the physical press we already handled. DOWN and UP of
+     * a single press share getDownTime(); distinct presses (even rapid repeats of the same button)
+     * have distinct downTimes. So this collapses one press to one action while still letting genuine
+     * fast double-presses through. If downTime is unreliable (<=0), falls back to a short 120 ms
+     * guard (enough to merge a press's DOWN/UP, short enough to pass deliberate double-presses).
+     */
+    private boolean isDuplicatePress(KeyEvent keyEvent, String label) {
+        long downTime = keyEvent.getDownTime();
+        long eventTime = keyEvent.getEventTime();
+        int action = keyEvent.getAction();
+        int repeat = keyEvent.getRepeatCount();
+        Log.w(TAG, "[WheelMedia] " + label + " evt action=" + action + " repeat=" + repeat
+                + " downTime=" + downTime + " eventTime=" + eventTime);
+        if (downTime > 0) {
+            if (downTime == lastHandledKeyDownTime) return true;
+            lastHandledKeyDownTime = downTime;
+            return false;
+        }
+        long now = SystemClock.uptimeMillis();
+        if (now - lastHandledKeyDownTimeFallbackMs < 120) return true;
+        lastHandledKeyDownTimeFallbackMs = now;
+        return false;
+    }
+
+    private IBinder queryPlayServiceBinder(IBinder pool) {
+        if (pool == null) return null;
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(MC_DESC);
+            data.writeInt(QUERY_CODE_PLAY_SERVICE);
+            pool.transact(TXN_QUERY_BINDER, data, reply, 0);
+            reply.readException();
+            return reply.readStrongBinder();
+        } catch (Exception e) {
+            Log.e(TAG, "[WheelMedia] queryBinder(IPlayService) failed", e);
+            return null;
+        } finally {
+            reply.recycle();
+            data.recycle();
+        }
+    }
+
+    private int getCurrentAudioSource() {
+        IBinder b = playServiceBinder;
+        if (b == null) return -1;
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(PLAY_DESC);
+            b.transact(TXN_GET_CURRENT_AUDIO_SOURCE, data, reply, 0);
+            reply.readException();
+            return reply.readInt();
+        } catch (Exception e) {
+            Log.e(TAG, "[WheelMedia] getCurrentAudioSource failed", e);
+            return -1;
+        } finally {
+            reply.recycle();
+            data.recycle();
+        }
+    }
+
+    private boolean playSkipBySource(int source, boolean next) {
+        IBinder b = playServiceBinder;
+        if (b == null) return false;
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(PLAY_DESC);
+            data.writeInt(source);
+            b.transact(next ? TXN_PLAY_NEXT : TXN_PLAY_PREV, data, reply, 0);
+            reply.readException();
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "[WheelMedia] playSkipBySource failed", e);
+            return false;
+        } finally {
+            reply.recycle();
+            data.recycle();
+        }
+    }
+
+    /**
+     * Wheel ENTER/OK (keycode 85) play/pause toggle for AA. BeanInputManager also returns early
+     * for source 402/403 here, so the system never toggles AA. We read the current play state and
+     * pause if playing (state==3) or resume otherwise, mirroring handleKeyEventPlayOrPause.
+     */
+    private void handleWheelPlayPause(KeyEvent keyEvent) {
+        if (isDuplicatePress(keyEvent, "PLAYPAUSE")) return;
+        int src = getCurrentAudioSource();
+        Log.w(TAG, "[WheelMedia] playPause currentAudioSource=" + src + " playBinder=" + (playServiceBinder != null));
+        if (src == SOURCE_ANDROID_AUTO || src == SOURCE_PHONELINK_403) {
+            int state = getPlayStateBySource(src);
+            boolean pause = (state == MEDIA_STATE_PLAYING);
+            boolean ok = pauseOrResumeBySource(src, pause);
+            Log.w(TAG, "[WheelMedia] toggled source " + src + " state=" + state + " pause=" + pause + " ok=" + ok);
+        }
+    }
+
+    private int getPlayStateBySource(int source) {
+        IBinder b = playServiceBinder;
+        if (b == null) return -1;
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(PLAY_DESC);
+            data.writeInt(source);
+            b.transact(TXN_GET_PLAY_STATE, data, reply, 0);
+            reply.readException();
+            if (reply.readInt() == 0) return -1; // null MediaPlayStateInfo
+            reply.readInt();                      // mSrc
+            return reply.readInt();               // mState
+        } catch (Exception e) {
+            Log.e(TAG, "[WheelMedia] getPlayStateBySource failed", e);
+            return -1;
+        } finally {
+            reply.recycle();
+            data.recycle();
+        }
+    }
+
+    private boolean pauseOrResumeBySource(int source, boolean pause) {
+        IBinder b = playServiceBinder;
+        if (b == null) return false;
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(PLAY_DESC);
+            data.writeInt(source);
+            b.transact(pause ? TXN_PAUSE_MEDIA : TXN_RESUME_MEDIA, data, reply, 0);
+            reply.readException();
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "[WheelMedia] pauseOrResumeBySource failed", e);
+            return false;
+        } finally {
+            reply.recycle();
+            data.recycle();
         }
     }
 
@@ -1766,6 +2113,28 @@ public class ServiceManager {
         }
     }
 
+    public void ensureDebloatedSystemApps() {
+        try {
+            boolean disableNav = sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_NATIVE_NAVIGATION.getKey(), false);
+            if (disableNav) {
+                disableSystemApp("com.neusoft.na.navigation");
+            } else {
+                enableSystemApp("com.neusoft.na.navigation");
+            }
+
+            boolean disableVoice = sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_NATIVE_VOICE.getKey(), false);
+            if (disableVoice) {
+                disableSystemApp("com.iflytek.cutefly.speechclient.hmi");
+                disableSystemApp("com.beantechs.voiceclient");
+            } else {
+                enableSystemApp("com.iflytek.cutefly.speechclient.hmi");
+                enableSystemApp("com.beantechs.voiceclient");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error ensuring debloated system apps", e);
+        }
+    }
+
     public void disableSystemApp(String packageName) {
         try {
             ShizukuUtils.runCommandAndGetOutput(new String[]{"pm", "uninstall", "--user", "0", packageName});
@@ -1834,7 +2203,8 @@ public class ServiceManager {
 
     private static IBinder getSystemService(String serviceName) {
         try {
-            return (IBinder) Objects.requireNonNull(getService.invoke(null, serviceName));
+            Object service = getService.invoke(null, serviceName);
+            return service != null ? (IBinder) service : null;
         } catch (IllegalAccessException | InvocationTargetException e) {
             Log.e(TAG, "Error getting system service: " + serviceName, e);
             throw new RuntimeException(e);

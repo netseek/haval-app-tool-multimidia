@@ -10,7 +10,9 @@ import android.util.Log
 import android.view.Display
 import android.view.View
 import android.view.WindowManager
+import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -69,11 +71,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var batteryCurrent = 0f
     private var isAnyAppOnDisplay3 = false
     private var isAnyAppOnDisplay1 = false
-    private var currentCard = 0
+    private var currentCard = ServiceManager.getInstance().clusterCardView
     private var isWarningActive = false
     private val dismissedWarnings = java.util.concurrent.ConcurrentHashMap<String, String>()
     private var isWarningDismissed = false
     private var lastWarningActiveTime = 0L
+    private var dataChangedListener: br.com.redesurftank.havalshisuku.listeners.IDataChanged? = null
 
     private fun isWarningValueActive(value: String?): Boolean {
         if (value == null) return false
@@ -114,8 +117,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     // CarConstants.CAR_BASIC_MAINTENANCE_WARNING.value,
                     CarConstants.CAR_BASIC_OIL_LOW_WARNING.value,
                     CarConstants.CAR_BASIC_SEAT_BELT_WARNING.value,
-                    CarConstants.CAR_BASIC_TIREPRESS_WARNING.value,
-                    CarConstants.CAR_BASIC_TIRETEMP_WARNING.value,
+                    // CarConstants.CAR_BASIC_TIREPRESS_WARNING.value,
+                    // CarConstants.CAR_BASIC_TIRETEMP_WARNING.value,
                     CarConstants.CAR_BASIC_TPMS_WARNING.value,
                     CarConstants.CAR_IPK_INFO_BSD_LCA_WARNING_REQLEFT.value,
                     CarConstants.CAR_IPK_INFO_BSD_LCA_WARNING_REQRIGHT.value,
@@ -244,7 +247,12 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 ensureUi {
                     when (event) {
                         ServiceManagerEventType.CLUSTER_CARD_CHANGED -> {
-                            currentCard = args[0] as Int
+                            val newCard = args[0] as Int
+                            if (isWarningActive && !isWarningDismissed && newCard == 1) {
+                                Log.w(TAG, "Ignoring card change to 1 because active warning forces Card 0 visually.")
+                                return@ensureUi
+                            }
+                            currentCard = newCard
                             lastAppliedConfigs
                                     .clear() // Invalidate cache on card change to force re-sync
                             evaluateJsIfReady(webView, "control('cardId', $currentCard)")
@@ -331,19 +339,22 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         }
                         ServiceManagerEventType.DISMISS_WARNING -> {
                             val timeSinceWarning = System.currentTimeMillis() - lastWarningActiveTime
-                            Log.d(TAG, "Received DISMISS_WARNING event. timeSinceWarning=${timeSinceWarning}ms (onset=${lastWarningActiveTime})")
+                            Log.w(TAG, "Received DISMISS_WARNING event. timeSinceWarning=${timeSinceWarning}ms (onset=${lastWarningActiveTime})")
                             if (timeSinceWarning >= 2500) {
                                 evaluateJsIfReady(webView, "clearWarnings()")
                                 updateWarningUI(false)
                                 isWarningDismissed = true
 
                                 val sm = ServiceManager.getInstance()
+                                val activeAtDismissal = mutableListOf<String>()
                                 for (key in monitoredWarningKeys) {
                                     val value = sm.getData(key)
                                     if (isWarningValueActive(value)) {
                                         dismissedWarnings[key] = value!!
+                                        activeAtDismissal.add("$key=$value")
                                     }
                                 }
+                                logWarningEvent("USER_DISMISS: dismissed active warnings = $activeAtDismissal")
                             } else {
                                 Log.w(TAG, "DISMISS_WARNING ignored: timeSinceWarning=${timeSinceWarning}ms < 2500ms lockout")
                             }
@@ -394,6 +405,11 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         preferences.unregisterOnSharedPreferenceChangeListener(prefsListener)
         ServiceManager.getInstance().removeServiceManagerEventListener(eventListener)
 
+        dataChangedListener?.let {
+            ServiceManager.getInstance().removeDataChangedListener(it)
+            dataChangedListener = null
+        }
+
         // Hardening: Explicitly destroy WebView to prevent leaks and broken channels
         webView?.let { wv: WebView ->
             Log.w(TAG, "Destroying WebView")
@@ -412,8 +428,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     }
 
     private fun setupDataListeners() {
-        ServiceManager.getInstance().addDataChangedListener { key, value ->
-            if (value == null) return@addDataChangedListener
+        val listener = br.com.redesurftank.havalshisuku.listeners.IDataChanged { key, value ->
+            if (value == null) return@IDataChanged
 
             // Same-value dedup. Cars commonly re-emit identical values
             // back-to-back (e.g. unchanged HVAC settings, sticky CAN
@@ -429,7 +445,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             // WebView's internal state to stay current so it's correct
             // the moment visibility returns.
             val previous = lastSentValues[key]
-            if (previous == value) return@addDataChangedListener
+            if (previous == value) return@IDataChanged
             lastSentValues[key] = value
 
             ensureUi {
@@ -566,18 +582,33 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             isWarningDismissed = false
                             if (!isWarningActive) {
                                 lastWarningActiveTime = System.currentTimeMillis()
-                                Log.d(TAG, "Warning onset detected in telemetry: key=$key value=$currentValue")
+                                Log.w(TAG, "Warning onset detected in telemetry: key=$key value=$currentValue")
                             } else {
-                                Log.d(TAG, "Telemetry warning update for key=$key value=$currentValue (already active, preserving onset)")
+                                Log.w(TAG, "Telemetry warning update for key=$key value=$currentValue (already active, preserving onset)")
                             }
-                            dismissedWarnings.clear()
-                            syncInitialWarnings()
+                        } else {
+                            var allActiveAreDismissed = true
+                            val sm = ServiceManager.getInstance()
+                            for (k in monitoredWarningKeys) {
+                                val v = sm.getData(k)
+                                if (isWarningValueActive(v)) {
+                                    if (dismissedWarnings[k] != v) {
+                                        allActiveAreDismissed = false
+                                        break
+                                    }
+                                }
+                            }
+                            isWarningDismissed = allActiveAreDismissed
                         }
                         evaluateJsIfReady(webView, "updateWarning('$key', '$value')")
+                        evaluateJsIfReady(webView, "control('warningDismissed', $isWarningDismissed)")
+                        logWarningEvent("TELEMETRY_CHANGE: key=$key, value=$currentValue, isWarningActive=$isWarningActive, isWarningDismissed=$isWarningDismissed")
                     }
                 }
             }
         }
+        dataChangedListener = listener
+        ServiceManager.getInstance().addDataChangedListener(listener)
     }
 
     private fun triggerAutoLaunch() {
@@ -613,51 +644,36 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         settings.allowContentAccess = true
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                                consoleMessage?.let { msg ->
+                                    Log.w(TAG, "JS_CONSOLE: [${msg.messageLevel()}] ${msg.message()} (at ${msg.sourceId()}:${msg.lineNumber()})")
+                                }
+                                return true
+                            }
+                        }
                         webViewClient =
                                 object : WebViewClient() {
-                                    override fun onPageFinished(view: WebView?, url: String?) {
-                                        super.onPageFinished(view, url)
-                                        view?.let { wv: android.webkit.WebView ->
-                                            Log.w(
-                                                    TAG,
-                                                    "WebView finished loading (PID: ${android.os.Process.myPid()}): $url"
-                                            )
-
-                                            // Mark the WebView as fully loaded first so that any new incoming
-                                            // telemetry events are processed instantly instead of being queued.
-                                            webViewsLoaded[wv] = true
-
-                                            // Discard all stale, redundant telemetry updates queued during page load
-                                            pendingJsQueues.remove(wv)
-
-                                            // Perform a single, consolidated, full-state synchronization
-                                            // using the latest car metrics to guarantee perfect UI consistency.
-                                            updateValuesWebView()
-
-                                            // Prime the warning state once so the UI reflects the current car warnings.
-                                            syncInitialWarnings()
-
-                                            // Re-initialize virtual cluster visibility and appInDash
-                                            updateVirtualClusterVisibility()
-
-                                            // Re-initialize active screen if any to match logical UI state
-                                            val currentScreen = MainUiManager.getInstance().currentScreen
-                                            if (currentScreen != null) {
-                                                evaluateJsIfReady(wv, "showScreen('${currentScreen.jsName}')")
-                                            }
-
-                                            // Re-initialize last selected menu if active
-                                            lastMenuNav?.let { menuNav ->
-                                                evaluateJsIfReady(wv, "control('menuNav', '$menuNav')")
-                                                evaluateJsIfReady(wv, "focus('$menuNav')")
-                                            }
-
-                                            // Inject Heartbeat
-                                            wv.evaluateJavascript(
-                                                    "setInterval(() => { if (window.Android && window.Android.heartbeat) window.Android.heartbeat(); }, 2000);",
-                                                    null
-                                            )
+                                    override fun onPageStarted(
+                                            view: WebView?,
+                                            url: String?,
+                                            favicon: android.graphics.Bitmap?
+                                    ) {
+                                        super.onPageStarted(view, url, favicon)
+                                        view?.let { wv ->
+                                            Log.w(TAG, "WebView started loading: $url")
+                                            webViewsLoaded[wv] = false
                                         }
+                                    }
+
+                                    override fun onPageFinished(view: WebView?, url: String?) {
+                                         super.onPageFinished(view, url)
+                                         view?.let { wv: android.webkit.WebView ->
+                                             Log.w(
+                                                     TAG,
+                                                     "WebView finished loading (PID: ${android.os.Process.myPid()}): $url"
+                                             )
+                                         }
                                     }
                                 }
                         loadDataWithBaseURL(
@@ -684,6 +700,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         updates["cardId"] = currentCard.toString()
         updates["display"] = getSavedClusterDisplay()
+
+        // Clock initialization
+        updates["clockTime"] = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
         // Gears
         updates["gearState"] = getGearLabel(sm.getData(CarConstants.CAR_BASIC_GEAR_STATUS.value))
@@ -883,7 +902,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                 }
 
                 val actualWidth =
-                        if (displayId == 3 && (!isWarningDismissed && (currentCard == 0 || isWarningActive))) {
+                        if (displayId == 3 && (currentCard == 0 || (isWarningActive && !isWarningDismissed))) {
                             (fullWidth * 0.7f).toInt() - baseX
                         } else {
                             baseWidth
@@ -938,7 +957,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             val baseHeight = bounds[3] - bounds[1]
 
             val targetWidth =
-                    if (displayId == 3 && (!isWarningDismissed && (currentCard == 0 || isWarningActive))) {
+                    if (displayId == 3 && (currentCard == 0 || (isWarningActive && !isWarningDismissed))) {
                         val calculated = (fullWidth * 0.7f).toInt() - baseX
                         kotlin.math.max(100, kotlin.math.min(baseWidth, calculated))
                     } else {
@@ -1184,6 +1203,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         return normalizeClusterDisplay(savedDisplay)
     }
 
+    fun isWarningActiveAndNotDismissed(): Boolean {
+        return isWarningActive && !isWarningDismissed
+    }
+
     private fun normalizeClusterDisplay(display: String): String {
         return when (display) {
             "Normal", "Esportivo", "Reduzido", "Clean" -> display
@@ -1220,6 +1243,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             Log.w(TAG, "Warning detected. currentCard=$currentCard. Triggering visibility update.")
         } else {
             Log.w(TAG, "Warnings cleared.")
+            isWarningDismissed = false
+            currentCard = ServiceManager.getInstance().clusterCardView
+            evaluateJsIfReady(webView, "control('cardId', $currentCard)")
         }
 
         updateVirtualClusterVisibility()
@@ -1248,11 +1274,54 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         }
 
         @JavascriptInterface
+        fun onJsReady() {
+            ensureUi {
+                val wv = webView ?: return@ensureUi
+                Log.w(TAG, "JS is fully ready and registered (PID: ${android.os.Process.myPid()})")
+                webViewsLoaded[wv] = true
+                pendingJsQueues.remove(wv)
+
+                updateValuesWebView()
+                syncInitialWarnings()
+                updateVirtualClusterVisibility()
+
+                // Re-initialize active screen if any to match logical UI state
+                val currentScreen = MainUiManager.getInstance().currentScreen
+                if (currentScreen != null) {
+                    evaluateJsIfReady(wv, "showScreen('${currentScreen.jsName}')")
+                }
+
+                // Re-initialize last selected menu if active
+                lastMenuNav?.let { menuNav ->
+                    evaluateJsIfReady(wv, "control('menuNav', '$menuNav')")
+                    evaluateJsIfReady(wv, "focus('$menuNav')")
+                }
+
+                // Inject Heartbeat
+                wv.evaluateJavascript(
+                        "setInterval(() => { if (window.Android && window.Android.heartbeat) window.Android.heartbeat(); }, 2000);",
+                        null
+                )
+            }
+        }
+
+        @JavascriptInterface
         fun saveSetting(key: String, value: String) {
             when (key) {
                 SharedPreferencesKeys.CURRENT_CLUSTER_DISPLAY.key -> saveClusterDisplay(value)
                 else -> Log.w(TAG, "Ignoring unsupported WebView setting: $key")
             }
+        }
+    }
+
+    private fun logWarningEvent(message: String) {
+        try {
+            val logFile = File(outerContext.filesDir, "warnings_log.txt")
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
+            logFile.appendText("[$timestamp] $message\n")
+            Log.w(TAG, "warnings_log.txt: $message")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error writing to warnings_log.txt", e)
         }
     }
 }

@@ -69,9 +69,16 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
     public synchronized int onStartCommand(Intent intent, int flags, int startId) {
         var sharedPreferences = App.getDeviceProtectedContext().getSharedPreferences("haval_prefs", Context.MODE_PRIVATE);
         
+        // Criar e iniciar notificação do Foreground Service imediatamente para satisfazer o timeout de 5s do Android
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Aplicação em execução")
+                .setContentText("Seu app está rodando em segundo plano")
+                .setSmallIcon(android.R.drawable.ic_notification_overlay)
+                .build();
+        startForeground(NOTIFICATION_ID, notification);
 
         if (isServiceRunning) {
-            Log.w(TAG, "Service is already running, skipping start.");
+            Log.w(TAG, "Service is already running, skipping start logic.");
             return START_STICKY; // Retorna imediatamente se o serviço já estiver rodando
         }
         try {
@@ -82,11 +89,6 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
             backgroundHandler.removeCallbacksAndMessages(null);
             
             var context = getApplicationContext();
-            // Criar notificação para o Foreground Service
-            Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID).setContentTitle("Aplicação em execução").setContentText("Seu app está rodando em segundo plano").setSmallIcon(android.R.drawable.ic_notification_overlay) // Ícone de notificação
-                    .build();
-
-            startForeground(NOTIFICATION_ID, notification);
 
             // Start bottom bar as early as possible if enabled
             if (sharedPreferences.getBoolean(SharedPreferencesKeys.PERSISTENT_BOTTOM_BAR.getKey(), false)) {

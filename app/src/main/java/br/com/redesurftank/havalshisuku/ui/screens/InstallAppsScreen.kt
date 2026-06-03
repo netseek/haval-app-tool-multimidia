@@ -590,6 +590,118 @@ fun InstallAppsTab() {
         }
 
         item(span = { GridItemSpan(4) }) {
+            var disableNativeNavigation by remember {
+                mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.DISABLE_NATIVE_NAVIGATION.key, false))
+            }
+            var disableNativeVoice by remember {
+                mutableStateOf(prefs.getBoolean(SharedPreferencesKeys.DISABLE_NATIVE_VOICE.key, false))
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .border(
+                        width = 1.dp,
+                        color = Color(0xFF1D2430),
+                        shape = RoundedCornerShape(12.dp)
+                    ),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF13151A)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(48.dp).background(Color(0xFF2A2F37), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Speed,
+                                contentDescription = null,
+                                tint = Color(0xFF4A9EFF),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                "Otimizações de Performance & Debloater",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Desative aplicativos nativos pesados para liberar RAM e CPU.",
+                                color = Color(0xFFB0B8C4),
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = Color(0xFF1D2430), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Navigation Toggle row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Desativar Navegador GPS Nativo", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            Text("Desativa o Neusoft Navigation. Libera mais de 150MB de RAM (ideal se você usa Maps/Waze via AA/CarPlay).", color = Color.Gray, fontSize = 12.sp)
+                        }
+                        Switch(
+                            checked = disableNativeNavigation,
+                            onCheckedChange = { checked ->
+                                disableNativeNavigation = checked
+                                prefs.edit().putBoolean(SharedPreferencesKeys.DISABLE_NATIVE_NAVIGATION.key, checked).apply()
+                                scope.launch(Dispatchers.IO) {
+                                    br.com.redesurftank.havalshisuku.managers.ServiceManager.getInstance().ensureDebloatedSystemApps()
+                                }
+                            },
+                            modifier = Modifier.scale(0.85f),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF4A9EFF)
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Speech/Voice Assistant Toggle row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Desativar Assistente de Voz Nativo", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            Text("Desativa o assistente de voz iFlyTek (chinês). Reduz drasticamente o uso de CPU (até 35% de alívio no processamento).", color = Color.Gray, fontSize = 12.sp)
+                        }
+                        Switch(
+                            checked = disableNativeVoice,
+                            onCheckedChange = { checked ->
+                                disableNativeVoice = checked
+                                prefs.edit().putBoolean(SharedPreferencesKeys.DISABLE_NATIVE_VOICE.key, checked).apply()
+                                scope.launch(Dispatchers.IO) {
+                                    br.com.redesurftank.havalshisuku.managers.ServiceManager.getInstance().ensureDebloatedSystemApps()
+                                }
+                            },
+                            modifier = Modifier.scale(0.85f),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF4A9EFF)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        item(span = { GridItemSpan(4) }) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                         modifier = Modifier.fillMaxWidth(),

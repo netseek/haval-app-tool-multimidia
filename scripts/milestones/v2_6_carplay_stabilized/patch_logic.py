@@ -22,7 +22,6 @@ CARPLAY_ACTIVITY = f"{SMALI_BASE}/CarPlayDisplayActivity.smali"
 CARPLAY_FRAGMENT = f"{SMALI_BASE}/CarPlayDisplayFragment.smali"
 CARPLAY_FRAGMENT_CALLBACK = f"{SMALI_BASE}/CarPlayDisplayFragment$2.smali"
 CARPLAY_ACTIVITY_HANDLER = f"{SMALI_BASE}/CarPlayDisplayActivity$1.smali"
-LINK_STATUS_MODEL = f"{BUILD_DIR}/smali/com/ts/carplay/app/ui/display/model/LinkStatusModel.smali"
 MANIFEST = f"{BUILD_DIR}/AndroidManifest.xml"
 
 # Extra configChanges flags to OR into the existing list.
@@ -123,7 +122,9 @@ CARPLAY_FINISH_SENTINEL = "# CARPLAY_FINISH_BLOCKED_PATCH"
 CARPLAY_ONCONFIG_SENTINEL = "# CARPLAY_ONCONFIGCHANGED_INJECTED"
 CARPLAY_FOCUS_SENTINEL = "# CARPLAY_ONWINDOWFOCUSCHANGED_FORCED_FOCUS_PATCH"
 CARPLAY_SHOWFRAGMENT_SENTINEL = "# CARPLAY_SHOWFRAGMENT_EQUALS_PATCH"
-LINK_STATUS_HIDE_SENTINEL = "# CARPLAY_NATIVE_FOCUS_RETENTION_PATCH"
+CARPLAY_RESUME_LOOP_SENTINEL = "# CARPLAY_RESUME_LOOP_TRIGGER_PATCH"
+CARPLAY_SHOW_FRAGMENT_LOOP_SENTINEL = "# CARPLAY_SHOWFRAGMENT_LOOP_TRIGGER_PATCH"
+CARPLAY_HANDLER_LOOP_SENTINEL = "# CARPLAY_HANDLER_INVALIDATION_LOOP_PATCH"
 
 CARPLAY_ONCONFIG_METHOD = f"""
 
@@ -274,10 +275,18 @@ def apply_activity_patches(path):
 
     if-eqz v2, :cond_return_early
 
-    # 5. Force standard 1920x720 dimensions for CarPlay negotiation
+    # 5. Read width and height
+    iget v3, v0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->mLastWidth:I
+
+    iget v4, v0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->mLastHeight:I
+
+    if-gtz v3, :cond_use_dims
+
     const/16 v3, 0x780 # 1920
 
     const/16 v4, 0x2d0 # 720
+
+    :cond_use_dims
     const-string v0, "CARPLAY_PATCH"
 
     const-string v1, "mCurFragmentType matches but mHasShown is false -> calling presenter.show()"
@@ -308,9 +317,9 @@ def apply_activity_patches(path):
         if ok_equals:
             count += 1
 
-    # F. onResume mHasShown reset
-    if "# Reset mHasShown to false on resume to allow stream re-activation" in content:
-        print("  [SKIP] onResume mHasShown reset already patched")
+    # F. onResume loop trigger and mHasShown reset
+    if CARPLAY_RESUME_LOOP_SENTINEL in content:
+        print("  [SKIP] onResume loop trigger already patched")
     else:
         # 1. Reset mHasShown to false at the start of onResume
         pattern_start = r"(\.method protected onResume\(\)V\s*\n\s*\.locals (\d+)\s*\n\s*(?:\s*\.line\s+\d+\s*\n)?\s*invoke-super \{p0\}, Landroid/app/Activity;->onResume\(\)V\s*\n)"
@@ -336,7 +345,49 @@ def apply_activity_patches(path):
 """
         content, ok_start = patch_regex(content, pattern_start, adjust_locals_and_reset, "onResume: reset mHasShown to false")
 
-        if ok_start:
+        # 2. Trigger invalidation loop at the end of onResume
+        pattern = r"(\.method protected onResume\(\)V.*?sendBroadcast\(Landroid/content/Intent;\)V\s*\n)"
+        replacement = r"\1\n    " + CARPLAY_RESUME_LOOP_SENTINEL + r"""
+    # Trigger continuous invalidation loop
+    iget-object v0, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayActivity;->mHandler:Landroid/os/Handler;
+
+    if-eqz v0, :cond_skip_loop_resume
+
+    const/16 v1, 0x3e7
+
+    invoke-virtual {v0, v1}, Landroid/os/Handler;->removeMessages(I)V
+
+    invoke-virtual {v0, v1}, Landroid/os/Handler;->sendEmptyMessage(I)Z
+
+    :cond_skip_loop_resume
+"""
+        content, ok_end = patch_regex(content, pattern, replacement, "onResume: trigger continuous invalidation loop")
+        if ok_start or ok_end:
+            count += 1
+
+
+    # G. showFragment loop trigger
+    if CARPLAY_SHOW_FRAGMENT_LOOP_SENTINEL in content:
+        print("  [SKIP] showFragment loop trigger already patched")
+    else:
+        pattern = r"(iput-object p1, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayActivity;->mCurFragmentType:Lcom/ts/carplay/app/ui/display/constants/DisplayConstants\$FragmentType;\s*\n(?:\s*\.line\s+\d+\s*\n)?\s*return-void)"
+        replacement = r"""# CARPLAY_SHOWFRAGMENT_LOOP_TRIGGER_PATCH
+    # Trigger continuous invalidation loop
+    iget-object v0, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayActivity;->mHandler:Landroid/os/Handler;
+
+    if-eqz v0, :cond_skip_loop_show
+
+    const/16 v1, 0x3e7
+
+    invoke-virtual {v0, v1}, Landroid/os/Handler;->removeMessages(I)V
+
+    invoke-virtual {v0, v1}, Landroid/os/Handler;->sendEmptyMessage(I)Z
+
+    :cond_skip_loop_show
+
+    """ + r"\1"
+        content, ok = patch_regex(content, pattern, replacement, "showFragment: trigger continuous invalidation loop")
+        if ok:
             count += 1
 
     write_file(path, content)
@@ -458,21 +509,6 @@ CARPLAY_UPDATEDP_METHOD = f"""
     iget-object v0, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->mSurfaceView:Landroid/view/SurfaceView;
 
     invoke-virtual {{v0, v3}}, Landroid/view/SurfaceView;->setLayoutParams(Landroid/view/ViewGroup$LayoutParams;)V
-
-    # Force the physical surface buffer size to 1920x720 (0x780, 0x2d0) so the native
-    # MediaCodec decoder always works at 1920x720 standard CarPlay resolution,
-    # preventing -38 dequeueInputBuffer errors on display transitions.
-    iget-object v0, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->mSurfaceView:Landroid/view/SurfaceView;
-
-    invoke-virtual {{v0}}, Landroid/view/SurfaceView;->getHolder()Landroid/view/SurfaceHolder;
-
-    move-result-object v0
-
-    const/16 v1, 0x780 # 1920
-
-    const/16 v2, 0x2d0 # 720
-
-    invoke-interface {{v0, v1, v2}}, Landroid/view/SurfaceHolder;->setFixedSize(II)V
 
     :cond_exit
     return-void
@@ -609,10 +645,6 @@ def apply_fragment_callback_patches(path):
     # Call show
     iget-object v0, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment$2;->this$0:Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;
 
-    # Override width and height parameters to 1920x720 for CarPlay negotiation
-    const/16 p3, 0x780 # 1920
-    const/16 p4, 0x2d0 # 720
-
     iget-object v1, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment$2;->this$0:Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;
 
     iget-object v1, v1, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->mDisplayPresenter:Lcom/ts/carplay/app/ui/display/view/DisplayContract$Presenter;
@@ -640,8 +672,8 @@ def apply_fragment_callback_patches(path):
     return count
 
 
-def apply_linkstatus_patches(path):
-    print("[LinkStatusModel] Patching LinkStatusModel.smali:")
+def apply_handler_patches(path):
+    print("[Handler] Patching CarPlayDisplayActivity$1.smali:")
     if not os.path.exists(path):
         print(f"  [ERROR] File not found: {path}")
         return 0
@@ -649,15 +681,62 @@ def apply_linkstatus_patches(path):
     content = read_file(path)
     count = 0
 
-    if LINK_STATUS_HIDE_SENTINEL in content:
-        print("  [SKIP] LinkStatusModel hide intercept already applied")
+    if CARPLAY_HANDLER_LOOP_SENTINEL in content:
+        print("  [SKIP] Invalidation loop handler already injected")
     else:
-        # Match the hide() method and comment out the setSurface call
-        pattern = r"(\.method public hide\(\)V\s*\n\s*\.locals 2\s*\n.*?)(\s*invoke-virtual \{v0, v1\}, Lcom/ts/carplay/manager/CarPlayManager;->setSurface\(Landroid/view/Surface;\)V)(.*?\.end method)"
-        replacement = r"\1\n    " + LINK_STATUS_HIDE_SENTINEL + r"\n    # invoke-virtual {v0, v1}, Lcom/ts/carplay/manager/CarPlayManager;->setSurface(Landroid/view/Surface;)V\n\3"
-        
-        content, ok = patch_regex(content, pattern, replacement, "hide(): intercept setSurface(null) to retain native focus")
-        if ok:
+        # Match handleMessage header and change .locals 2 to .locals 4
+        pattern_locals = r"(\.method public handleMessage\(Landroid/os/Message;\)V\s*\n\s*\.locals )2"
+        replacement_locals = r"\g<1>4"
+        content, ok_locals = patch_regex(content, pattern_locals, replacement_locals, "handleMessage: change locals count from 2 to 4")
+
+        # Match right after "iget v0, p1, Landroid/os/Message;->what:I" and inject our what == 999 handler
+        pattern_what = r"(iget v0, p1, Landroid/os/Message;->what:I\s*\n)"
+        replacement_what = r"""\1
+    # CARPLAY_HANDLER_INVALIDATION_LOOP_PATCH
+    const/16 v1, 0x3e7 # 999
+
+    if-ne v0, v1, :cond_not_999
+
+    iget-object v0, p0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayActivity$1;->this$0:Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayActivity;
+
+    iget-object v0, v0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayActivity;->mFragment:Lcom/ts/carplay/app/ui/display/view/BaseFragment;
+
+    instance-of v1, v0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;
+
+    if-eqz v1, :cond_loop_resched
+
+    check-cast v0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;
+
+    iget-object v1, v0, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->mSurfaceView:Landroid/view/SurfaceView;
+
+    if-eqz v1, :cond_skip_surface_invalidate
+
+    invoke-virtual {v1}, Landroid/view/SurfaceView;->invalidate()V
+
+    :cond_skip_surface_invalidate
+    invoke-virtual {v0}, Lcom/ts/carplay/app/ui/display/view/CarPlayDisplayFragment;->getView()Landroid/view/View;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_loop_resched
+
+    invoke-virtual {v0}, Landroid/view/View;->invalidate()V
+
+    :cond_loop_resched
+    const/16 v0, 0x3e7
+
+    invoke-virtual {p0, v0}, Landroid/os/Handler;->removeMessages(I)V
+
+    const-wide/16 v1, 0x32 # 50ms
+
+    invoke-virtual {p0, v0, v1, v2}, Landroid/os/Handler;->sendEmptyMessageDelayed(IJ)Z
+
+    goto :goto_0
+
+    :cond_not_999
+"""
+        content, ok_what = patch_regex(content, pattern_what, replacement_what, "handleMessage: inject what == 999 invalidation handler")
+        if ok_locals or ok_what:
             count += 1
 
     write_file(path, content)
@@ -687,7 +766,7 @@ def main():
     print()
     changes += apply_fragment_callback_patches(CARPLAY_FRAGMENT_CALLBACK)
     print()
-    changes += apply_linkstatus_patches(LINK_STATUS_MODEL)
+    changes += apply_handler_patches(CARPLAY_ACTIVITY_HANDLER)
     print()
 
     print("=" * 70)

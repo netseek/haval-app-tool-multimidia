@@ -210,5 +210,7 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     TRIP_CONSISTENCY_CLUSTER_ACTIVE("tripConsistencyClusterActive", "Indicador discreto de análise de viagem ativa no cluster"),
     TRIP_CONSISTENCY_CLUSTER_SCORE("tripConsistencyClusterScore", "Score de consistência em tempo real no cluster"),
     AA_PATCH_AUTO_MOUNT("aaPatchAutoMount", "Habilitar montagem automática dos patches do Android Auto ao iniciar"),
-    CARPLAY_PATCH_AUTO_MOUNT("carplayPatchAutoMount", "Habilitar montagem automática dos patches do CarPlay ao iniciar")
+    CARPLAY_PATCH_AUTO_MOUNT("carplayPatchAutoMount", "Habilitar montagem automática dos patches do CarPlay ao iniciar"),
+    DISABLE_NATIVE_NAVIGATION("disableNativeNavigation", "Desativar navegador GPS nativo (Neusoft)"),
+    DISABLE_NATIVE_VOICE("disableNativeVoice", "Desativar assistente de voz nativo (iFlyTek)")
 }

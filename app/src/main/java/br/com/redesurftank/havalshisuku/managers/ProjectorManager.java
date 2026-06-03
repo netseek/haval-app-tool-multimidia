@@ -207,4 +207,11 @@ public class ProjectorManager {
         displayManager.registerDisplayListener(listener, new Handler(Looper.getMainLooper()));
         Log.w(TAG, "Registered listener for missing displays: " + pending);
     }
+
+    public boolean isWarningActiveAndNotDismissed() {
+        if (instrumentProjector2 != null) {
+            return instrumentProjector2.isWarningActiveAndNotDismissed();
+        }
+        return false;
+    }
 }

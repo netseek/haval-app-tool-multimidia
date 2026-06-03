@@ -118,9 +118,15 @@ function render() {
             classes.push('cluster-disabled');
         }
 
-        if (get('warningDismissed') !== true && (get('cardId') == 0 || get('warningActive') === true)) {
+        if (get('cardId') == 0 || (get('warningDismissed') !== true && get('warningActive') === true)) {
             classes.push('warn-is-active');
         }
+        console.error('[Render State] ' + JSON.stringify({
+            cardId: get('cardId'),
+            warningActive: get('warningActive'),
+            warningDismissed: get('warningDismissed'),
+            classes: classes.join(' ')
+        }));
         if (nativeMockEnabled) {
             classes.push('native-mock-enabled');
         }
@@ -209,6 +215,11 @@ subscribe('clusterEnabled', render);
 // subscribe('cardId', render); // REMOVED: Triggers double-render as cardId listener already sets screen
 render();
 
+// Notify Android that Javascript is fully ready
+if (window.Android && window.Android.onJsReady) {
+    window.Android.onJsReady();
+}
+
 
 
 // Handle Card ID transitions
@@ -226,7 +237,7 @@ subscribe('cardId', (cardId) => {
 
     // 0 = hide the right menu display
     if (menuWrapper) {
-        menuWrapper.style.display = (cardId == 0 && get('warningDismissed') !== true) ? 'none' : 'block';
+        menuWrapper.style.display = (cardId == 0) ? 'none' : 'block';
     }
 
     if (cardId == 1) {

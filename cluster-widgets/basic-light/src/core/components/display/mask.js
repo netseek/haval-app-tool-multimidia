@@ -37,7 +37,7 @@ export function createMask() {
         const cardId = get('cardId');
         const warningActive = get('warningActive');
         const warningDismissed = get('warningDismissed');
-        const rightVisible = warningDismissed || (cardId != 0 && !warningActive);
+        const rightVisible = cardId != 0 && (warningDismissed || !warningActive);
 
         let showL = true;
         let showR = true;

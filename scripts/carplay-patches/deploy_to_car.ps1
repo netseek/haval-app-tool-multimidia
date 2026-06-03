@@ -48,6 +48,9 @@ if (-not (Test-Path $keystorePath)) {
 Write-Host ""
 Write-Host "[+] Rebuilding smali directory using apktool..." -ForegroundColor Cyan
 $apktoolJar = "tools/apktool_3.0.2.jar"
+if (-not (Test-Path $apktoolJar)) {
+    $apktoolJar = "../../tools/apktool_3.0.2.jar"
+}
 $unsignedApk = "build_carplay/TsCarPlayApp_unsigned.apk"
 $alignedApk = "build_carplay/TsCarPlayApp_aligned.apk"
 $signedApk = "build_carplay/TsCarPlayApp_signed.apk"
