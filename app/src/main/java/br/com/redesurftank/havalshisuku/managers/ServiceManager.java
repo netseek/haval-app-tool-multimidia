@@ -58,11 +58,10 @@ import br.com.redesurftank.havalshisuku.listeners.IDataChanged;
 import br.com.redesurftank.havalshisuku.listeners.IServiceManagerEvent;
 import br.com.redesurftank.havalshisuku.models.CarConstants;
 import br.com.redesurftank.havalshisuku.models.CarInfo;
-import br.com.redesurftank.havalshisuku.models.MainUiManager;
+import br.com.redesurftank.havalshisuku.models.ClusterKey;
 import br.com.redesurftank.havalshisuku.models.ServiceManagerEventType;
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys;
 import br.com.redesurftank.havalshisuku.models.SteeringWheelCustomActionType;
-import br.com.redesurftank.havalshisuku.models.screens.Screen;
 import br.com.redesurftank.havalshisuku.utils.FridaUtils;
 import br.com.redesurftank.havalshisuku.utils.ShizukuUtils;
 import rikka.shizuku.Shizuku;
@@ -200,7 +199,7 @@ public class ServiceManager {
             CarConstants.CAR_EV_SETTING_CHARGE_SOC_TARGET_CONFIG,
     };
     private static ServiceManager instance;
-    private volatile boolean isThemeDecentralized = false;
+
     private final Set<String> dynamicallyRegisteredKeys = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final List<IDataChanged> dataChangedListeners;
     private final List<IServiceManagerEvent> serviceManagerEventListeners;
@@ -410,43 +409,40 @@ public class ServiceManager {
                         }
                     }
                     if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_CUSTOM_MENU.getKey(), false)) {
-                        Screen.Key key = null;
+                        ClusterKey key = null;
                         switch (keyEvent.getKeyCode()) {
                             case 1024:
-                                key = Screen.Key.UP;
+                                key = ClusterKey.UP;
                                 break;
                             case 1025:
-                                key = Screen.Key.DOWN;
+                                key = ClusterKey.DOWN;
                                 break;
                             case 1028:
-                                key = Screen.Key.ENTER;
+                                key = ClusterKey.ENTER;
                                 break;
                             case 1029:
-                                key = Screen.Key.HOME;
+                                key = ClusterKey.HOME;
                                 break;
                             case 1030:
-                                key = Screen.Key.BACK;
+                                key = ClusterKey.BACK;
                                 break;
                             case 1033:
-                                key = Screen.Key.UP_LONG;
+                                key = ClusterKey.UP_LONG;
                                 break;
                             case 1034:
-                                key = Screen.Key.DOWN_LONG;
+                                key = ClusterKey.DOWN_LONG;
                                 break;
                             case 1037:
-                                key = Screen.Key.ENTER_LONG;
+                                key = ClusterKey.ENTER_LONG;
                                 break;
                             case 1039:
-                                key = Screen.Key.BACK_LONG;
+                                key = ClusterKey.BACK_LONG;
                                 break;
                         }
                         if (key != null) {
-                            if (!isThemeDecentralized) {
-                                MainUiManager.getInstance().handleGeneralKeyEvents(key);
-                            }
                             dispatchServiceManagerEvent(ServiceManagerEventType.RAW_KEY_EVENT, key);
                         }
-                        if (key == Screen.Key.BACK) {
+                        if (key == ClusterKey.BACK) {
                             dispatchServiceManagerEvent(ServiceManagerEventType.DISMISS_WARNING);
                         }
                     }
@@ -529,7 +525,7 @@ public class ServiceManager {
             for (Runnable task : pendingTasks) backgroundHandler.post(task);
             pendingTasks.clear();
         }
-        MainUiManager.getInstance().updateScreen();
+
         timeInitialized = SystemClock.uptimeMillis();
         Log.w(TAG, "Services initialized successfully");
         backgroundHandler.post(() -> {
@@ -1704,14 +1700,7 @@ public class ServiceManager {
         });
     }
 
-    public boolean isThemeDecentralized() {
-        return isThemeDecentralized;
-    }
 
-    public void setThemeDecentralized(boolean decentralized) {
-        this.isThemeDecentralized = decentralized;
-        Log.d(TAG, "Theme decentralization flag updated to: " + decentralized);
-    }
 
     public String[] getCombinedKeys() {
         List<String> keys = new ArrayList<>();
