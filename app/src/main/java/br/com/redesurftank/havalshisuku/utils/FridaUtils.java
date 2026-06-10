@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import br.com.redesurftank.App;
+import br.com.redesurftank.havalshisuku.BuildConfig;
 import br.com.redesurftank.havalshisuku.R;
 import br.com.redesurftank.havalshisuku.models.CommandListener;
 import moe.shizuku.server.IShizukuService;
@@ -77,6 +78,10 @@ public class FridaUtils {
     }
 
     public static boolean ensureFridaServerRunning() {
+        if (!BuildConfig.EMBED_FRIDA_TOOLS) {
+            Log.w(TAG, "Embedded Frida tools are disabled in this build variant");
+            return false;
+        }
         IShizukuService shizukuService = IShizukuService.Stub.asInterface(Shizuku.getBinder());
         try {
             if (!extractFridaFiles())
@@ -133,6 +138,10 @@ public class FridaUtils {
 
 
     private static boolean injectScript(String scriptPath, String targetProcess, String baseName, boolean synchronous) {
+        if (!BuildConfig.EMBED_FRIDA_TOOLS) {
+            Log.w(TAG, "Skipping Frida injection for " + targetProcess + ": embedded tools are disabled");
+            return false;
+        }
         Log.w(TAG, "Handling Frida script injection for: " + scriptPath + " into process: " + targetProcess);
         String pid = ShizukuUtils.runCommandAndGetOutput(new String[]{"sh", "-c", "ps -A | grep '" + targetProcess + "' | awk '{print $2}'"}).trim();
         if (pid.contains("\n")) {

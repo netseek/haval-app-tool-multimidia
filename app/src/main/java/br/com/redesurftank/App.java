@@ -31,8 +31,11 @@ public class App extends Application {
         super.onCreate();
         sApplication = this;
         
-        // Auto-apply AA Patches if installed
-        br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager.INSTANCE.applyMounts();
+        // Keep projection patches available without remounting/restarting projection apps on
+        // every app launch when the existing bind mounts are already healthy.
+        br.com.redesurftank.havalshisuku.managers.AndroidAutoPatchManager.INSTANCE.ensureMounted();
+        br.com.redesurftank.havalshisuku.managers.CarPlayPatchManager.INSTANCE.ensureMounted();
+        br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.ensureDefaultDesktopShortcuts();
 
         var context = getContext();
         Intent serviceIntent = new Intent(context, ForegroundService.class);

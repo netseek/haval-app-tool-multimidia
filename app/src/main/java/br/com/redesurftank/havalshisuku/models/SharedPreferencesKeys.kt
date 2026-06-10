@@ -177,6 +177,10 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     ),
     SHOW_BETA_UPDATES("showBetaUpdates", "Mostrar atualizações do canal beta"),
     DISPLAY_APP_CONFIGS("displayAppConfigs", "Configurações de apps para telas secundárias"),
+    ANDROID_SETTINGS_SHORTCUT_SEEDED(
+            "androidSettingsShortcutSeeded",
+            "Atalho das Configurações do Android já criado na área de trabalho padrão"
+    ),
     ENABLE_VIRTUAL_CLUSTER(
             "enableVirtualCluster",
             "Habilitar Virtual Cluster no painel de instrumentos com a opção de temas diferenciados"
@@ -209,5 +213,6 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
     SPEED_ADJUSTMENT_OFFSET("speedAdjustmentOffset", "Fator de ajuste de velocidade (%)"),
     TRIP_CONSISTENCY_CLUSTER_ACTIVE("tripConsistencyClusterActive", "Indicador discreto de análise de viagem ativa no cluster"),
     TRIP_CONSISTENCY_CLUSTER_SCORE("tripConsistencyClusterScore", "Score de consistência em tempo real no cluster"),
-    AA_PATCH_AUTO_MOUNT("aaPatchAutoMount", "Habilitar montagem automática dos patches do Android Auto ao iniciar")
+    AA_PATCH_AUTO_MOUNT("aaPatchAutoMount", "Habilitar montagem automática dos patches do Android Auto ao iniciar"),
+    CARPLAY_PATCH_AUTO_MOUNT("carPlayPatchAutoMount", "Habilitar montagem automática dos patches do CarPlay ao iniciar")
 }

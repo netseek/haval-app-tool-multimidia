@@ -2,9 +2,11 @@ package br.com.redesurftank.havalshisuku.managers
 
 import android.content.Context
 import android.util.Log
+import br.com.redesurftank.App
 import br.com.redesurftank.havalshisuku.utils.ShizukuUtils
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 
 object AndroidAutoPatchManager {
     private const val TAG = "AA_PATCH_MGR"
@@ -18,25 +20,68 @@ object AndroidAutoPatchManager {
     const val VENDOR_SERVICE_OAT = "/vendor/app/AndroidAutoService/oat"
     const val VENDOR_APP_OAT = "/vendor/app/AndroidAutoApp/oat"
 
+    private fun sh(command: String): String {
+        val output = ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "$command 2>&1"))
+        Log.d(TAG, "sh: $command -> $output")
+        return output
+    }
+
+    private fun hasBundledAsset(context: Context, assetName: String): Boolean {
+        return try {
+            context.assets.open("aa_patches/$assetName").use { true }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun bundledPatchMd5(context: Context, assetName: String): String? {
+        return try {
+            val digest = MessageDigest.getInstance("MD5")
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            context.assets.open("aa_patches/$assetName").use { input ->
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    digest.update(buffer, 0, read)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to hash bundled Android Auto patch $assetName", e)
+            null
+        }
+    }
+
+    private fun installedPatchMd5(assetName: String): String {
+        return sh("md5sum '$PATCH_DIR/$assetName' 2>/dev/null | awk '{print \$1}'").trim()
+    }
+
+    private fun isServicePatchInstalled(): Boolean {
+        return sh("[ -f '$PATCH_DIR/$SERVICE_APK' ] && echo yes || true").contains("yes")
+    }
+
     fun isPatchInstalled(): Boolean {
-        val output = ShizukuUtils.runCommandAndGetOutput(arrayOf("ls", "-l", PATCH_DIR))
-        val installed = output.contains(SERVICE_APK) && output.contains(APP_APK)
-        Log.d(TAG, "isPatchInstalled: $installed (ls output: $output)")
+        val output = sh("ls -l '$PATCH_DIR' 2>/dev/null")
+        val installed = output.contains(APP_APK)
+        Log.d(TAG, "isPatchInstalled: $installed")
         return installed
     }
 
     fun isMounted(): Boolean {
-        // Use MD5 comparison for reliable mount detection
-        val vendorAppMd5 = ShizukuUtils.runCommandAndGetOutput(arrayOf("md5sum", VENDOR_APP_PATH)).trim().split(" ")[0]
-        val patchAppMd5 = ShizukuUtils.runCommandAndGetOutput(arrayOf("md5sum", "$PATCH_DIR/$APP_APK")).trim().split(" ")[0]
-        
-        val vendorServiceMd5 = ShizukuUtils.runCommandAndGetOutput(arrayOf("md5sum", VENDOR_SERVICE_PATH)).trim().split(" ")[0]
-        val patchServiceMd5 = ShizukuUtils.runCommandAndGetOutput(arrayOf("md5sum", "$PATCH_DIR/$SERVICE_APK")).trim().split(" ")[0]
+        val vendorAppMd5 = sh("md5sum '$VENDOR_APP_PATH' 2>/dev/null | awk '{print \$1}'").trim()
+        val patchAppMd5 = sh("md5sum '$PATCH_DIR/$APP_APK' 2>/dev/null | awk '{print \$1}'").trim()
 
-        val appMounted = vendorAppMd5 == patchAppMd5 && vendorAppMd5.isNotEmpty()
-        val serviceMounted = vendorServiceMd5 == patchServiceMd5 && vendorServiceMd5.isNotEmpty()
-        
-        val mounted = serviceMounted && appMounted
+        val appMounted = vendorAppMd5.isNotEmpty() && vendorAppMd5 == patchAppMd5
+        val servicePatchInstalled = isServicePatchInstalled()
+        val serviceMounted = if (servicePatchInstalled) {
+            val vendorServiceMd5 = sh("md5sum '$VENDOR_SERVICE_PATH' 2>/dev/null | awk '{print \$1}'").trim()
+            val patchServiceMd5 = sh("md5sum '$PATCH_DIR/$SERVICE_APK' 2>/dev/null | awk '{print \$1}'").trim()
+            vendorServiceMd5.isNotEmpty() && vendorServiceMd5 == patchServiceMd5
+        } else {
+            true
+        }
+
+        val mounted = appMounted && serviceMounted
         Log.d(TAG, "isMounted (MD5): $mounted (Service: $serviceMounted, App: $appMounted)")
         return mounted
     }
@@ -44,15 +89,30 @@ object AndroidAutoPatchManager {
     fun installPatches(context: Context): Boolean {
         try {
             Log.i(TAG, "Starting patch installation...")
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("mkdir", "-p", PATCH_DIR))
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("chmod", "777", PATCH_DIR))
-            
-            // Create empty oat dir
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("mkdir", "-p", "$PATCH_DIR/empty_oat"))
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("chmod", "777", "$PATCH_DIR/empty_oat"))
+            if (!hasBundledAsset(context, APP_APK)) {
+                Log.e(TAG, "Cannot install Android Auto patch: missing bundled asset aa_patches/$APP_APK")
+                return false
+            }
 
-            val assets = arrayOf(SERVICE_APK, APP_APK)
+            sh("mkdir -p '$PATCH_DIR'")
+            sh("chmod 755 '$PATCH_DIR'")
+
+            // Create empty oat dir
+            sh("mkdir -p '$PATCH_DIR/empty_oat'")
+            sh("chmod 755 '$PATCH_DIR/empty_oat'")
+
+            val assets = arrayOf(APP_APK, SERVICE_APK)
             for (assetName in assets) {
+                if (!hasBundledAsset(context, assetName)) {
+                    if (assetName == SERVICE_APK) {
+                        sh("rm -f '$PATCH_DIR/$SERVICE_APK'")
+                        Log.i(TAG, "No bundled Service APK patch; keeping stock AndroidAutoService")
+                        continue
+                    }
+                    Log.e(TAG, "Missing mandatory Android Auto patch asset: $assetName")
+                    return false
+                }
+
                 Log.d(TAG, "Copying asset: $assetName")
                 val inputStream = context.assets.open("aa_patches/$assetName")
                 val tempFile = File(context.cacheDir, assetName)
@@ -64,11 +124,11 @@ object AndroidAutoPatchManager {
                 }
                 
                 val destPath = "$PATCH_DIR/$assetName"
-                val cpOut = ShizukuUtils.runCommandAndGetOutput(arrayOf("cp", tempFile.absolutePath, destPath))
+                val cpOut = sh("cp '${tempFile.absolutePath}' '$destPath'")
                 Log.d(TAG, "Copy output for $assetName: $cpOut")
                 
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("chmod", "644", destPath))
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("chcon", "u:object_r:vendor_app_file:s0", destPath))
+                sh("chmod 644 '$destPath'")
+                sh("chcon u:object_r:vendor_app_file:s0 '$destPath'")
                 tempFile.delete()
             }
             val success = isPatchInstalled()
@@ -89,47 +149,40 @@ object AndroidAutoPatchManager {
         try {
             Log.i(TAG, "Applying bind mounts...")
             // 1. Unmount existing if any (aggressive)
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("umount", "-l", VENDOR_SERVICE_PATH))
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("umount", "-l", VENDOR_APP_PATH))
-            
-            if (ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "[ -d $VENDOR_SERVICE_OAT ] && echo exists")).contains("exists")) {
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("umount", "-l", VENDOR_SERVICE_OAT))
-            }
-            if (ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "[ -d $VENDOR_APP_OAT ] && echo exists")).contains("exists")) {
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("umount", "-l", VENDOR_APP_OAT))
-            }
+            sh("umount -l '$VENDOR_SERVICE_PATH' 2>/dev/null || true")
+            sh("umount -l '$VENDOR_APP_PATH' 2>/dev/null || true")
+            sh("[ -d '$VENDOR_SERVICE_OAT' ] && umount -l '$VENDOR_SERVICE_OAT' 2>/dev/null || true")
+            sh("[ -d '$VENDOR_APP_OAT' ] && umount -l '$VENDOR_APP_OAT' 2>/dev/null || true")
 
             // 2. Apply Bind Mounts
-            val res1 = ShizukuUtils.runCommandAndGetOutput(arrayOf("mount", "--bind", "$PATCH_DIR/$SERVICE_APK", VENDOR_SERVICE_PATH))
-            if (res1.contains("error", ignoreCase = true) || res1.contains("failed", ignoreCase = true)) {
-                Log.e(TAG, "Failed to mount Service APK: $res1")
+            var res1 = "Service patch not bundled"
+            if (isServicePatchInstalled()) {
+                res1 = sh("mount --bind '$PATCH_DIR/$SERVICE_APK' '$VENDOR_SERVICE_PATH'")
+                if (res1.contains("error", ignoreCase = true) || res1.contains("failed", ignoreCase = true)) {
+                    Log.e(TAG, "Failed to mount Service APK: $res1")
+                }
             }
-            
-            val res2 = ShizukuUtils.runCommandAndGetOutput(arrayOf("mount", "--bind", "$PATCH_DIR/$APP_APK", VENDOR_APP_PATH))
+
+            val res2 = sh("mount --bind '$PATCH_DIR/$APP_APK' '$VENDOR_APP_PATH'")
             if (res2.contains("error", ignoreCase = true) || res2.contains("failed", ignoreCase = true)) {
                 Log.e(TAG, "Failed to mount App APK: $res2")
             }
             
             // Mount empty oat only if target exists
-            val checkOat1 = ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "[ -d $VENDOR_SERVICE_OAT ] && echo exists"))
-            if (checkOat1.contains("exists")) {
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("mount", "--bind", "$PATCH_DIR/empty_oat", VENDOR_SERVICE_OAT))
+            if (isServicePatchInstalled()) {
+                sh("[ -d '$VENDOR_SERVICE_OAT' ] && mount --bind '$PATCH_DIR/empty_oat' '$VENDOR_SERVICE_OAT' || true")
             }
-
-            val checkOat2 = ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "[ -d $VENDOR_APP_OAT ] && echo exists"))
-            if (checkOat2.contains("exists")) {
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("mount", "--bind", "$PATCH_DIR/empty_oat", VENDOR_APP_OAT))
-            }
+            sh("[ -d '$VENDOR_APP_OAT' ] && mount --bind '$PATCH_DIR/empty_oat' '$VENDOR_APP_OAT' || true")
             
             Log.d(TAG, "Mount Service Result: $res1")
             Log.d(TAG, "Mount App Result: $res2")
 
             // 3. Wipe dalvik cache to force reload
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("rm", "-rf", "/data/dalvik-cache/arm64/*AndroidAuto*"))
+            sh("rm -f /data/dalvik-cache/arm64/*AndroidAuto* 2>/dev/null || true")
 
             // 4. Force stop apps
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("am", "force-stop", "com.ts.androidauto"))
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("am", "force-stop", "com.ts.androidauto.app"))
+            sh("am force-stop com.ts.androidauto")
+            sh("am force-stop com.ts.androidauto.app")
 
             val success = isMounted()
             if (success) {
@@ -147,18 +200,13 @@ object AndroidAutoPatchManager {
     fun removeMounts(): Boolean {
         try {
             Log.i(TAG, "Removing mounts...")
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("umount", "-l", VENDOR_SERVICE_PATH))
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("umount", "-l", VENDOR_APP_PATH))
-            
-            if (ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "[ -d $VENDOR_SERVICE_OAT ] && echo exists")).contains("exists")) {
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("umount", "-l", VENDOR_SERVICE_OAT))
-            }
-            if (ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "[ -d $VENDOR_APP_OAT ] && echo exists")).contains("exists")) {
-                ShizukuUtils.runCommandAndGetOutput(arrayOf("umount", "-l", VENDOR_APP_OAT))
-            }
-            
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("am", "force-stop", "com.ts.androidauto"))
-            ShizukuUtils.runCommandAndGetOutput(arrayOf("am", "force-stop", "com.ts.androidauto.app"))
+            sh("umount -l '$VENDOR_SERVICE_PATH' 2>/dev/null || true")
+            sh("umount -l '$VENDOR_APP_PATH' 2>/dev/null || true")
+            sh("[ -d '$VENDOR_SERVICE_OAT' ] && umount -l '$VENDOR_SERVICE_OAT' 2>/dev/null || true")
+            sh("[ -d '$VENDOR_APP_OAT' ] && umount -l '$VENDOR_APP_OAT' 2>/dev/null || true")
+
+            sh("am force-stop com.ts.androidauto")
+            sh("am force-stop com.ts.androidauto.app")
             
             return true
         } catch (e: Exception) {
@@ -170,7 +218,7 @@ object AndroidAutoPatchManager {
     fun uninstallPatches(): Boolean {
         Log.i(TAG, "Uninstalling patches...")
         removeMounts()
-        val res = ShizukuUtils.runCommandAndGetOutput(arrayOf("rm", "-rf", PATCH_DIR))
+        sh("rm -rf '$PATCH_DIR'")
         return !isPatchInstalled()
     }
     
@@ -181,14 +229,44 @@ object AndroidAutoPatchManager {
      */
     fun ensureMounted() {
         try {
-            if (isPatchInstalled() && !isMounted()) {
-                Log.i(TAG, "Patches installed but not mounted — auto-mounting...")
+            val context = App.getContext()
+            val bundledAppMd5 = bundledPatchMd5(context, APP_APK)
+            if (bundledAppMd5 == null) {
+                Log.e(TAG, "No bundled Android Auto patch available; skipping auto-mount")
+                return
+            }
+
+            val bundledServiceMd5 = if (hasBundledAsset(context, SERVICE_APK)) {
+                bundledPatchMd5(context, SERVICE_APK)
+            } else {
+                null
+            }
+
+            val installedAppMd5 = installedPatchMd5(APP_APK)
+            val installedServiceMd5 = installedPatchMd5(SERVICE_APK)
+            val needsInstall =
+                !isPatchInstalled() ||
+                        bundledAppMd5 != installedAppMd5 ||
+                        (bundledServiceMd5 != null && bundledServiceMd5 != installedServiceMd5) ||
+                        (bundledServiceMd5 == null && isServicePatchInstalled())
+
+            if (needsInstall) {
+                Log.i(TAG, "Installing bundled Android Auto patch update...")
+                if (!installPatches(context)) {
+                    Log.e(TAG, "Cannot auto-mount Android Auto patch: install failed")
+                    return
+                }
+            }
+
+            if (!isMounted() || needsInstall) {
+                Log.i(
+                    TAG,
+                    "Android Auto patch auto-mounting. bundledApp=$bundledAppMd5 installedApp=$installedAppMd5 refreshed=$needsInstall"
+                )
                 val success = applyMounts()
                 Log.i(TAG, "Auto-mount result: $success")
-            } else if (isMounted()) {
-                Log.d(TAG, "Patches already mounted, nothing to do")
             } else {
-                Log.d(TAG, "No patches installed, skipping auto-mount")
+                Log.d(TAG, "Patches already mounted, nothing to do")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Auto-mount failed", e)
@@ -196,10 +274,10 @@ object AndroidAutoPatchManager {
     }
 
     fun getDiagnostics(): String {
-        val id = ShizukuUtils.runCommandAndGetOutput(arrayOf("id"))
-        val mounts = ShizukuUtils.runCommandAndGetOutput(arrayOf("mount"))
-        val patchFiles = ShizukuUtils.runCommandAndGetOutput(arrayOf("ls", "-lR", PATCH_DIR))
-        val vendorFiles = ShizukuUtils.runCommandAndGetOutput(arrayOf("ls", "-lR", "/vendor/app/AndroidAuto*"))
+        val id = sh("id")
+        val mounts = sh("mount | grep -Ei 'AndroidAuto|aa_patches'")
+        val patchFiles = sh("ls -lR '$PATCH_DIR' 2>/dev/null")
+        val vendorFiles = sh("ls -lR /vendor/app/AndroidAuto*")
         val sb = StringBuilder()
         sb.append("ID: $id\n\n")
         sb.append("Mounts:\n$mounts\n\n")
@@ -208,18 +286,18 @@ object AndroidAutoPatchManager {
 
         sb.append("--- Integrity Check ---\n")
         sb.append("OAT Mounts:\n")
-        val oatCheck1 = ShizukuUtils.runCommandAndGetOutput(arrayOf("ls", "/vendor/app/AndroidAutoService/oat")).trim()
-        val oatCheck2 = ShizukuUtils.runCommandAndGetOutput(arrayOf("ls", "/vendor/app/AndroidAutoApp/oat")).trim()
-        sb.append("  Service OAT: ${if (oatCheck1.isEmpty()) "EMPTY (OK)" else "NOT EMPTY (FAILED)"}\n")
+        val oatCheck1 = sh("ls /vendor/app/AndroidAutoService/oat 2>/dev/null").trim()
+        val oatCheck2 = sh("ls /vendor/app/AndroidAutoApp/oat 2>/dev/null").trim()
+        sb.append("  Service OAT: ${if (isServicePatchInstalled()) { if (oatCheck1.isEmpty()) "EMPTY (OK)" else "NOT EMPTY (FAILED)" } else "STOCK (OK)"}\n")
         sb.append("  App OAT:     ${if (oatCheck2.isEmpty()) "EMPTY (OK)" else "NOT EMPTY (FAILED)"}\n\n")
         val targets = arrayOf(
             "/vendor/app/AndroidAutoService/AndroidAutoService.apk",
             "/vendor/app/AndroidAutoApp/AndroidAutoApp.apk"
         )
         for (target in targets) {
-            val vendorMd5 = ShizukuUtils.runCommandAndGetOutput(arrayOf("md5sum", target)).trim().split(" ")[0]
+            val vendorMd5 = sh("md5sum '$target' 2>/dev/null | awk '{print \$1}'").trim()
             val fileName = target.substring(target.lastIndexOf("/") + 1)
-            val patchMd5 = ShizukuUtils.runCommandAndGetOutput(arrayOf("md5sum", "$PATCH_DIR/$fileName")).trim().split(" ")[0]
+            val patchMd5 = sh("md5sum '$PATCH_DIR/$fileName' 2>/dev/null | awk '{print \$1}'").trim()
 
             sb.append("$fileName:\n")
             sb.append("  Vendor: $vendorMd5\n")

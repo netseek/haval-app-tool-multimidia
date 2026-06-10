@@ -15,13 +15,13 @@ Patches in this repo use an `x.y` scheme:
 | Version | Aim | Status |
 |---------|-----|--------|
 | **v1.x** | Focus-lost patch — keep AA video alive when focus is stolen. | v1.19 is the first fully validated milestone, in `scripts/milestones/v19_focus_bypass/` (folder name kept; conceptually this is v1.19). |
-| **v2.x** | Dynamic resize + AAP-buffer cropping — AA UI reflows to the active display's resolution, with encoder padding and the left app rail both clipped away on cluster displays. | v2.0 = setDisplayParams reads live window bounds (initial layout only — historical). v2.1 = added `onConfigurationChanged` + `updateDisplayParams` passthrough + manifest `configChanges` (intermediate, reflowed but had black Y bars). v2.2 = SurfaceView Y-crop epilogue, validated milestone `scripts/milestones/v2_2_dynamic_resize/`. **v2.4 = current**: adds conditional X-crop on `displayId != 0` so Google's AA app rail is hidden on cluster (but kept on Display 0). Validated milestone `scripts/milestones/v2_4_sidebar_xcrop/`. |
-| **v2.3** | Overscan-aware Display 0 bounds. | Code shipped in Impulse (`getEffectiveBounds` + `applyOverscanToDisplay0Height` + restore-path patches) but visual confirmation pending — investigation paused, see [`TODO_v2_3_overscan_investigation.md`](TODO_v2_3_overscan_investigation.md). |
-| **v2.5** | AAP `DISPLAY_TYPE_CLUSTER` (planned). | Service-APK patch (new ground — we've only touched App APK so far) to advertise cluster displays as `DISPLAY_TYPE_CLUSTER` in the AAP handshake. Google's AA on the phone then renders cluster-native UI from the start (no sidebar, possibly matching aspect ratio). Supersedes v2.2's Y-crop and v2.4's X-crop. See [`TODO_v2_5_display_type_cluster.md`](TODO_v2_5_display_type_cluster.md). |
+| **v2.x** | Dynamic resize + AAP-buffer cropping — AA UI reflows to the active display's resolution, with encoder padding and the left app rail both clipped away on cluster displays, and always uses the full display on Display 0. | v2.0 = setDisplayParams reads live window bounds (initial layout only — historical). v2.1 = added `onConfigurationChanged` + `updateDisplayParams` passthrough + manifest `configChanges`. v2.2 = SurfaceView Y-crop epilogue, milestone `scripts/milestones/v2_2_dynamic_resize/`. v2.4 = X-crop on `displayId != 0`, milestone `scripts/milestones/v2_4_sidebar_xcrop/`. **v2.5 = current**: Display-0 override using `Display.getRealMetrics()` so the system's 1792-wide stack on shortcut launch is corrected to the full 1920. Validated milestone `scripts/milestones/v2_5_display0_full_dims/`. |
+| **v2.3** | Overscan-aware Display 0 bounds. | Code shipped in Impulse but visual confirmation pending and superseded for AA by v2.5 (which bypasses overscan on Display 0). Notes in [`TODO_v2_3_overscan_investigation.md`](TODO_v2_3_overscan_investigation.md). |
+| **v2.6+** | AAP `DISPLAY_TYPE_CLUSTER` (planned). | Service-APK patch (new ground — we've only touched App APK so far) to advertise cluster displays as `DISPLAY_TYPE_CLUSTER` in the AAP handshake. Google's AA on the phone then renders cluster-native UI from the start (no sidebar, possibly matching aspect ratio). Supersedes v2.2's Y-crop and v2.4's X-crop. See [`TODO_v2_5_display_type_cluster.md`](TODO_v2_5_display_type_cluster.md) (file name predates the v2.5 reassignment). |
 
-`patch_logic.py` always applies v2.4 — which includes all v1 patches plus
-all v2 patches (v2.0, v2.1, v2.2, v2.4). v2 strictly supersedes v1 (the
-v1.19 milestone APK is a strict subset of a v2.4 build).
+`patch_logic.py` always applies v2.5 — which includes all v1 patches plus
+all v2 patches (v2.0, v2.1, v2.2, v2.4, v2.5, v2.5-diag). v2 strictly
+supersedes v1 (the v1.19 milestone APK is a strict subset of a v2.5 build).
 
 ## Patches Applied
 

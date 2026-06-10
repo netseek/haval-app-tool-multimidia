@@ -2773,7 +2773,7 @@ canvas.graph-chart {
   z-index: 62;
 }
 
-.display-esportivo.native-mock-enabled .dashboard-sport-fixed-overlay {
+.native-mock-enabled .dashboard-sport-fixed-overlay {
   display: block;
 }
 

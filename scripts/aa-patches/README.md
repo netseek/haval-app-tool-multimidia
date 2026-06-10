@@ -6,8 +6,16 @@ This directory contains everything needed to build, patch, and deploy a modified
 - Reflows the UI live when the app is moved between displays (v2.1 — `onConfigurationChanged`).
 - Crops the 1080p AAP buffer's encoder padding so the video fills the cluster zone without black bars (v2.2).
 - Hides Google's left app-rail when AA is on a cluster display, keeps it on the main display (v2.4).
+- Overrides Display 0 window bounds with `Display.getRealMetrics()` so car-shortcut launches don't get cropped to a 1792-wide stack (v2.5).
 
 See [`patch_guide.md`](patch_guide.md) for the full v1/v2 patch breakdown, the versioning scheme, and on-vehicle verification steps.
+
+> 📋 **Before you start a patch run**: read the **Working conventions** section
+> in [`../README.md`](../README.md) for the repo-wide convention on where
+> build/decompile output goes. This pipeline historically uses `build_v19/` at
+> the repo root (gitignored, working) — keep using it for established
+> workflows, but route any ad-hoc / new work through `scripts/.build/` as
+> described there.
 
 ## Versioning at a glance
 
@@ -16,18 +24,18 @@ Patches use an `x.y` scheme — `x` is the major aim, `y` is the iteration insid
 | Version | Aim | State |
 |---------|-----|-------|
 | **v1.x** | Focus-lost-patch effort | v1.19 = first validated milestone, in `../milestones/v19_focus_bypass/` (folder kept under its original `v19_*` name; conceptually v1.19) |
-| **v2.x** | Dynamic resize on display moves + AAP video adaptation | v2.0 = setDisplayParams reads live window bounds; v2.1 = onConfigurationChanged + updateDisplayParams passthrough; v2.2 = SurfaceView Y-crop to hide encoder padding bars; **v2.4 = current**, [`../milestones/v2_4_sidebar_xcrop/`](../milestones/v2_4_sidebar_xcrop/) — adds SurfaceView X-crop to hide Google AA's left app rail on cluster displays. Includes all v1 patches. |
-| **v2.3** | Overscan-aware Display 0 bounds | Code shipped in Impulse (`DisplayAppLauncher.applyOverscanToDisplay0Height` + restore-path patches) but visual change unconfirmed — investigation paused, see [TODO_v2_3_overscan_investigation.md](TODO_v2_3_overscan_investigation.md). |
-| **v2.5** | AAP `DISPLAY_TYPE_CLUSTER` (planned) | Service-APK patch to advertise cluster displays as `DISPLAY_TYPE_CLUSTER` so the phone natively renders cluster UI (no sidebar, no rendering wasted on hidden bands). Supersedes the v2.4 crop trick. See [TODO_v2_5_display_type_cluster.md](TODO_v2_5_display_type_cluster.md). |
+| **v2.x** | Dynamic resize on display moves + AAP video adaptation | v2.0 = setDisplayParams reads live window bounds; v2.1 = onConfigurationChanged + updateDisplayParams passthrough; v2.2 = SurfaceView Y-crop to hide encoder padding bars; v2.4 = X-crop hides Google AA's left app rail on cluster; **v2.5 = current**, [`../milestones/v2_5_display0_full_dims/`](../milestones/v2_5_display0_full_dims/) — adds Display 0 override using `Display.getRealMetrics()` so car-shortcut launches fill the full 1920×720. Includes all v1 patches. |
+| **v2.3** | Overscan-aware Display 0 bounds | Code shipped in Impulse but visual change unconfirmed and now superseded for AA by v2.5 (which bypasses overscan on Display 0). Notes parked in [TODO_v2_3_overscan_investigation.md](TODO_v2_3_overscan_investigation.md). |
+| **v2.6+** | AAP `DISPLAY_TYPE_CLUSTER` (planned) | Service-APK patch to advertise cluster displays as `DISPLAY_TYPE_CLUSTER` so the phone natively renders cluster UI (no sidebar, no rendering wasted on hidden bands). Supersedes the v2.4 crop trick. See [TODO_v2_5_display_type_cluster.md](TODO_v2_5_display_type_cluster.md) (the file name predates the v2.5 reassignment). |
 
 ## Quick Reference
 
 | What | Where |
 |------|-------|
 | Stock APK | `stock/AndroidAutoApp_stock.apk` |
-| **Current patch script (v2.4)** | [`patch_logic.py`](patch_logic.py) — applies v1.x + v2.0 + v2.1 + v2.2 + v2.4 |
-| **Latest validated milestone** | [`../milestones/v2_4_sidebar_xcrop/`](../milestones/v2_4_sidebar_xcrop/) — v2.4 signed APK + patch snapshot + deploy script |
-| Earlier milestones | `../milestones/v2_2_dynamic_resize/` (v2.2, dynamic resize + Y-crop), `../milestones/v19_focus_bypass/` (v1.19, focus-only) |
+| **Current patch script (v2.5)** | [`patch_logic.py`](patch_logic.py) — applies v1.x + v2.0 + v2.1 + v2.2 + v2.4 + v2.5 + v2.5-diag |
+| **Latest validated milestone** | [`../milestones/v2_5_display0_full_dims/`](../milestones/v2_5_display0_full_dims/) — v2.5 signed APK + patch snapshot + deploy script |
+| Earlier milestones | `../milestones/v2_4_sidebar_xcrop/` (v2.4, sidebar X-crop), `../milestones/v2_2_dynamic_resize/` (v2.2, dynamic resize + Y-crop), `../milestones/v19_focus_bypass/` (v1.19, focus-only) |
 | Deploy script (standalone, reusable) | Each milestone ships its own `deploy_to_car.py`; takes `--apk` so the same code works for any milestone |
 | Build output | `../../build_v19/` (project root, gitignored — folder name kept from v1.19 era) |
 | apktool | `../../tools/apktool_3.0.2.jar` (gitignored — download once from `iBotPeaches/Apktool` releases) |
@@ -107,6 +115,8 @@ arp -a
 | 10 | v2.1 | `AndroidManifest.xml` | Extend `android:configChanges` to include `screenSize\|smallestScreenSize\|screenLayout\|orientation\|density\|navigation\|keyboard\|keyboardHidden\|locale\|fontScale` (in addition to `uiMode`) | Stops Android from recreating the activity on display moves/resizes so the v2.1 hook actually fires |
 | 11 | v2.2 | `setDisplayParams()` (epilogue) | After layout, oversize SurfaceView to `windowHeight × 1.5` with `topMargin = −windowHeight / 4` | Causes the parent `FrameLayout` to clip out the 180px black bars the phone encodes around the 1080p buffer's 720-row content area |
 | 12 | v2.4 | `setDisplayParams()` (second epilogue) | When `getDisplay().getDisplayId() != 0`: oversize SurfaceView width to `windowWidth × 16/15`, set `leftMargin = −windowWidth / 15`, override `LayoutParams.gravity = LEFT \| TOP` | Hides Google AA's ~128px left app rail on cluster displays; skips on Display 0 so the rail remains usable there |
+| 13 | v2.5 | `setDisplayParams()` (prologue, inside v2.0) | If `getDisplay().getDisplayId() == 0`, overwrite the window-bound width/height with `Display.getRealMetrics()` | Fixes car-shortcut launches where the system stack is 1792×720 instead of the full 1920×720. AA always uses the full display on the main screen. |
+| 14 | v2.5-diag | `setDisplayParams()` (entry) | `Log.e("V25_DIAG", "setDisplayParams w=W h=H mode=N displayId=I")` | Cheap diagnostic that records what bounds + windowing mode + display each call sees. Useful for future bound-related investigations. |
 
 The v1 patches preserve the live projection session across display moves.
 Without v2.0 + v2.1 the projection would survive but stay at its initial size.
@@ -114,7 +124,10 @@ Without v1 the v2.1 trigger would still recreate the activity from scratch.
 Without v2.2, v2.1 reflows the layout correctly but leaves visible black
 bars top/bottom because of how the phone encodes 1080p.
 Without v2.4, the cluster shows Google's app rail wasting horizontal space.
-All five layers are required for the full clean cluster experience.
+Without v2.5, the first launch from the car shortcut leaves gaps on
+Display 0 because the system stack is narrower than the display.
+All six layers are required for the seamless full-screen + cluster
+experience.
 
 ### Important: Stock APK State
 

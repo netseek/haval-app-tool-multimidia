@@ -27,6 +27,7 @@
         <activity
             android:name=".SplashActivity"
             android:exported="true"
+            android:noHistory="true"
             android:screenOrientation="landscape"
             android:configChanges="orientation|keyboardHidden|screenSize"
             android:theme="@style/Theme.HavalShisuku">
@@ -40,10 +41,25 @@
         <activity
             android:name=".MainActivity"
             android:exported="false"
+            android:launchMode="singleTop"
             android:screenOrientation="landscape"
             android:configChanges="orientation|keyboardHidden|screenSize"
             android:label="@string/title_activity_main"
             android:theme="@style/Theme.HavalShisuku">
+        </activity>
+
+        <activity
+            android:name=".AndroidSettingsShortcutActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/android_settings_shortcut_label"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
         </activity>
 
         <service

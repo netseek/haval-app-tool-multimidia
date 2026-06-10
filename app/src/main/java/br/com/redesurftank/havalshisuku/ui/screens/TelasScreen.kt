@@ -740,11 +740,9 @@ fun TelasTab() {
                                                                 if (theme.folderName == "Default" ||
                                                                                 theme.name ==
                                                                                         "Default"
-                                                                ) {
-                                                                    if (isDefaultDownloaded)
-                                                                            "Default"
-                                                                    else ""
-                                                                } else theme.folderName
+                                                                )
+                                                                        ""
+                                                                else theme.folderName
                                                         )
                                                     }
                                                 } else {
@@ -766,7 +764,13 @@ fun TelasTab() {
                                                                             SharedPreferencesKeys
                                                                                     .ACTIVE_CUSTOM_THEME
                                                                                     .key,
-                                                                            theme.folderName
+                                                                            if (theme.folderName ==
+                                                                                            "Default" ||
+                                                                                            theme.name ==
+                                                                                                    "Default"
+                                                                            )
+                                                                                    ""
+                                                                            else theme.folderName
                                                                     )
                                                                 }
                                                             }
@@ -793,7 +797,13 @@ fun TelasTab() {
                                                                         SharedPreferencesKeys
                                                                                 .ACTIVE_CUSTOM_THEME
                                                                                 .key,
-                                                                        theme.folderName
+                                                                        if (theme.folderName ==
+                                                                                        "Default" ||
+                                                                                        theme.name ==
+                                                                                                "Default"
+                                                                        )
+                                                                                ""
+                                                                        else theme.folderName
                                                                 )
                                                             }
                                                         }

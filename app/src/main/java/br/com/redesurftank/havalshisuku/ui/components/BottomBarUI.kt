@@ -51,8 +51,9 @@ import kotlin.math.roundToInt
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-private const val recycleOut = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJFBMVEV5pf57o/57nvd4ke1bjPJpfupvbH9HcExnlfhejfJhkfU9/+4C6j87AAAADHRSTlMiFQwG/gMBAFrOlQHp+XlJAAAC1ElEQVQ4y32VsU4jMRCGx9IVC5VtURA6777BrvIAJ02RpI3gDUhDfxQ0QUoBVEFKcXRBShHuAWh4uftnbK8dTrqRQGt/nvHMZGZM90l+3a0g11luZPV5T4k+yPL2uhIcuPtK+NdXVh1UpvKJrYQ/75Quh1GmyiN+iHQ4EeERx3t1s2vbth85FbqMsGt7/Osjp1q3B8jSdcLpflWo7oeQD2CLYjKWSTUAeue8T5zGa5UCAboQueCKeqUqwSmnRGVRoJoQ85RoP1JrbTqAC6jcCwV3vmPmt7c/RwP72KRiOYBylvkj9IFTHgOga5hPuBfcZZ/tgedrImqeXj6UB0/RtOi6s0hVcM3cuJYkWUHTQTveElV84TyN6bBnvCiUDPjW0ZisS+Y11fyZ54IV2ubAM9l9UpGD8PSRNKbmA+kQv5pdiktOTgTD7IfubA3RgQu254LDlWq8HSViXhTjdAYcnNg9rska2aid+8GGAjw+GusMWWwsTrEjN+G9NVFoM/sHb9gYq1K0z9fZuDssBMF4dXejyRfXLM+cg13r4Nvo+U74Fb/SJb9agrpql7g1SfwTR95NliprBa9FV6mVUijGGxifABdtql2b8Dv+UlgptiqwDTy/4Kxr6Zsc8Htf8JGcuG4r4/EGhAzXUEMIvPjMvBf6zPwKPSwRmt3UNa66KFVPqBSeWUdcy14yyntUKip8h+sPKEutOQR/xYs1lNFmLfmA8heRpoIPkn91YyY9iloLVpbb1Nf4aWInxh5rtRbnv23pfGNedvO9djBK8XQqJBPSztLfbeYezVKf9DodpAPRKRhYQb/aTIOOniFOOt+maefT0AtxcJ1MyiReDbdDN6TpkGWovnVo6qRVA32c01083+nMp/gA9In1yocO87iTF4HKA9EN378wz08eEChM69fkRmZqPDAdn6jlNC1vVlQ9bfIy1Uu8ZJR39NlLcjuepdV/5S/ikFxpmirRgwAAAABJRU5ErkJggg=="
-private const val recycleIn = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJ1BMVEV6pf97nfh7o/12kO5bjPJlf+leVZZlk/ZHcExejvJgj/P//+0A/9FP0Or/AAAADXRSTlMeDBMG/QMBVQDLlQEBuyPuOwAAAtFJREFUOMt9Vc1q20AQHpaAcU6VdOpttQRMchPCL1AWjHw18RtYl/ZgjCEkTxBoDyEITG+mGIzzALkk51z6Uv1m9kerFvfDyDv7zcyORrMz9Ojw4+21BW4DLix9PNLj93dZ/cZjdZuAFT7ovX1tv7bRsnaY8hp79NE6rBISWEyFp7a3XNQD8AGgl6uULASBp8GZVeZRVY6ntrcsiqwqooLwBM8LYSORKpAzraLbsiyNccuCaWY9lefG4AeFsoTI1otgCiOQeSkKePBeTT5e2UuRs4OCxJa9emitw1JoPlgkpUhddtba5ufLURk5H9ZZTkIq0pc2oFmzf9BZ9snu4ZJIjWyPZgP7jGCsoUuMg1uM7h5OnicO+t7OmR0HNXjCMQ3OJ45LH+wTjDp+BoCfm5xgrDWYNW2dDw8F/gnWiJp1G8S1jqTGS_7bRmiOeotgZ9HSqRzshtg3jU78LsFY+/9r0Mi0I1PfTmsM2uibTtJw6iM7uj+hDdjmZc1JmXv77U4iuLCKDCLeud0OaneMrdu5sIbMtd17n6OuT/ku0FsbgwkxRhrOuzRXo9Q5h6b7bES40OjGPtMk/Q7DFyP7BSp7Ogeh1+fYEZxfn6VReb/+Q+MrbujKxi80hKIDvveVPZ49emboM2oKJT7IKL8LisU+G6SFRSXlEmvc17xCzpHoGemJTbHnjNo9qhDXp8PxKGUtkBqer3HZlDYZas2MxWLj7iFfUgljhksGOnfijinlLvClV8cd44s/OTU7lVx99dA1ezZmGrw2/yCXBkRJa8jzPDNeKtkW3aGSZmXEVexdxvWuoqbat6w8k2bFbMaauXQuik1tANHkvlYXKZ+0x6KoxLryW9yFpdGGjomhQK4ZV9KhK9eXnVTwyHA9ldd1kY6C0M//mhHTab/kabAK3X4aR9Ri6sVlS8lou20Hk44nGYWdpWchuNkjgh9UPb6lwtsfbTVCnXvwUeQAAAAASUVORK5CYII="
+private const val recycleIn = "data:image/png;base64,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"
+private const val recycleOut = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAAJ1BMVEV6pf97nfh7o/12kO5bjPJlf+leVZZlk/ZHcExejvJgj/P//+0A/9FP0Or/AAAADXRSTlMeDBMG/QMBVQDLlQEBuyPuOwAAAtFJREFUOMt9Vc1q20AQHpaAcU6VdOpttQRMchPCL1AWjHw18RtYl/ZgjCEkTxBoDyEITG+mGIzzALkk51z6Uv1m9kerFvfDyDv7zcyORrMz9Ojw4+21BW4Dlix9PNLj93dZ/cZjdZuAFT7ovX1tv7bRsnaY8hp79NE6rBISWEyFp7a3XNQD8AGgl6uULASBp8GZVeZRVY6ntrcsiqwqooLwBM8LYSORKpAzraLbsiyNccuCaWY9lefG4AeFsoTI1otgCiOQeSkKePBeTT5e2UuRs4OCxJa9emitw1JoPlgkpUhddtba5ufLURk5H9ZZTkIq0pc2oFmzf9BZ9snu4ZJIjWyPZgP7jGCsoUuMg1uM7h5OnicO+t7OmR0HNXjCMQ3OJ45LH+wTjDp+BoCfm5xgrDWYNW2dDw8F/gnWiJp1G8S1jqTGS97bRmiOeotgZ9HSqRzshtg3jU78LsFY+/9r0Mi0I1PfTmsM2uibTtJw6iM7uj+hDdjmZc1JmXv77U4iuLCKDCLeud0OaneMrdu5sIbMtd17n6OuT/ku0FsbgwkxRhrOuzRXo9Q5h6b7bES40OjGPtMk/Q7DFyP7BSp7Ogeh1+fYEZxfn6VReb/+Q+MrbujKxi80hKIDvveVPZ49emboM2oKJT7IKL8LisU+G6SFRSXlEmvc17xCzpHoGemJTbHnjNo9qhDXp8PxKGUtkBqer3HZlDYZas2MxWLj7iFfUgljhksGOnfijinlLvClV8cd44s/OTU7lVx99dA1ezZmGrw2/yCXBkRJa8jzPDNeKtkW3aGSZmXEVexdxvWuoqbat6w8k2bFbMaauXQuik1tANHkvlYXKZ+0x6KoxLryW9yFpdGGjomhQK4ZV9KhK9eXnVTwyHA9ldd1kY6C0M//mhHTab/kabAK3X4aR9Ri6sVlS8lou20Hk44nGYWdpWchuNkjgh9UPb6lwtsfbTVCnXvwUeQAAAAASUVORK5CYII="
+private const val BOTTOM_BAR_TAG = "BottomBarUI"
 
 private val commonTextStyle =
         TextStyle(
@@ -162,7 +163,7 @@ fun BottomBarContent() {
         }
         var acRecirc by remember {
                 mutableStateOf(
-                        serviceManager.getData(CarConstants.CAR_HVAC_CYCLE_MODE.getValue()) ?: "0"
+                        if ((serviceManager.getData(CarConstants.CAR_HVAC_CYCLE_MODE.getValue()) ?: "0") == "0") "1" else "0"
                 )
         }
 
@@ -198,7 +199,7 @@ fun BottomBarContent() {
                                                 CarConstants.CAR_HVAC_AUTO_ENABLE.getValue() ->
                                                         acAuto = value
                                                 CarConstants.CAR_HVAC_CYCLE_MODE.getValue() ->
-                                                        acRecirc = value
+                                                        acRecirc = if (value == "0") "1" else "0"
                                         }
                                 }
                         }
@@ -420,7 +421,7 @@ fun BottomBarContent() {
                                                         ) {
                                                                 ACControlButton(
                                                                         icon = if (acRecirc == "1") recycleIn else recycleOut,
-                                                                        label = "Recirc",
+                                                                        label = "Circular",
                                                                         isActive = acRecirc == "1",
                                                                         isEnabled = isACEnabled
                                                                 ) {
@@ -428,11 +429,13 @@ fun BottomBarContent() {
                                                                                 if (acRecirc == "1")
                                                                                         "0"
                                                                                 else "1"
+                                                                        // Invert before sending to car (car uses opposite convention)
+                                                                        val carValue = if (next == "0") "1" else "0"
                                                                         serviceManager.updateData(
                                                                                 CarConstants
                                                                                         .CAR_HVAC_CYCLE_MODE
                                                                                         .getValue(),
-                                                                                next
+                                                                                carValue
                                                                         )
                                                                 }
                                                                 ACControlButton(
@@ -712,8 +715,17 @@ fun AppSwitcherSection() {
 
         val selectedPackage = br.com.redesurftank.havalshisuku.models.BottomBarState.selectedPackage
         val showMenu = br.com.redesurftank.havalshisuku.models.BottomBarState.isMenuExpanded
+        val projectionPackageOnMain =
+                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
+                        .resolveActiveProjectionPackageForDisplay(0)
+        val effectiveSelectedPackage =
+                projectionPackageOnMain
+                        ?: when {
+                                selectedPackage.isNotEmpty() -> selectedPackage
+                                else -> configs.firstOrNull()?.packageName ?: ""
+                        }
 
-        val selectedConfig = configs.find { it.packageName == selectedPackage }
+        val selectedConfig = configs.find { it.packageName == effectiveSelectedPackage }
         val substituteIconVector = getSubstituteIconVector(selectedConfig?.substituteIcon)
 
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -732,10 +744,21 @@ fun AppSwitcherSection() {
                                         interactionSource = leftNavInteraction,
                                         indication = null
                                 ) {
+                                        Log.w(
+                                                BOTTOM_BAR_TAG,
+                                                "Cluster send click: selectedPackage=$selectedPackage, effectivePackage=$effectiveSelectedPackage"
+                                        )
                                         scope.launch {
                                                 br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                                        .getOrCreateDefaultConfig(context, selectedPackage, save = false)
+                                                        .getOrCreateDefaultConfig(
+                                                                context,
+                                                                effectiveSelectedPackage
+                                                        )
                                                         ?.let {
+                                                                Log.w(
+                                                                        BOTTOM_BAR_TAG,
+                                                                        "Cluster send dispatch: package=${it.packageName}, display=${it.displayId}"
+                                                                )
                                                                 br.com.redesurftank.havalshisuku.managers
                                                                         .DisplayAppLauncher.sendToDisplay(
                                                                         it
@@ -771,7 +794,11 @@ fun AppSwitcherSection() {
                                                                         .isMenuExpanded = !showMenu
                                                         },
                                                         onDoubleTap = {
-                                                                if (selectedPackage.isNotEmpty()) {
+                                                                if (effectiveSelectedPackage.isNotEmpty()) {
+                                                                        Log.w(
+                                                                                BOTTOM_BAR_TAG,
+                                                                                "Main display launch double tap: selectedPackage=$selectedPackage, effectivePackage=$effectiveSelectedPackage"
+                                                                        )
                                                                         br.com.redesurftank
                                                                                 .havalshisuku.models
                                                                                 .BottomBarState
@@ -784,8 +811,7 @@ fun AppSwitcherSection() {
                                                                                         .DisplayAppLauncher
                                                                                         .getOrCreateDefaultConfig(
                                                                                                 context,
-                                                                                                selectedPackage,
-                                                                                                save = false
+                                                                                                effectiveSelectedPackage
                                                                                         )
                                                                                 br.com.redesurftank
                                                                                         .havalshisuku
@@ -793,7 +819,7 @@ fun AppSwitcherSection() {
                                                                                         .DisplayAppLauncher
                                                                                         .launchAnyApp(
                                                                                                 context,
-                                                                                                selectedPackage
+                                                                                                effectiveSelectedPackage
                                                                                         )
                                                                         }
                                                                 }
@@ -835,13 +861,13 @@ fun AppSwitcherSection() {
                                         tint = iconTint,
                                         modifier = Modifier.size(32.dp)
                                 )
-                        } else if (selectedPackage.isNotEmpty()) {
+                        } else if (effectiveSelectedPackage.isNotEmpty()) {
                                 val appInfo =
-                                        remember(selectedPackage) {
+                                        remember(effectiveSelectedPackage) {
                                                 br.com.redesurftank.havalshisuku.managers
                                                         .DisplayAppLauncher.resolveAppInfo(
                                                         context,
-                                                        selectedPackage,
+                                                        effectiveSelectedPackage,
                                                         selectedConfig?.customName
                                                 )
                                         }
@@ -879,21 +905,36 @@ fun AppSwitcherSection() {
                                         interactionSource = rightNavInteraction,
                                         indication = null
                                 ) {
+                                        Log.w(
+                                                BOTTOM_BAR_TAG,
+                                                "Main display restore click: selectedPackage=$selectedPackage, effectivePackage=$effectiveSelectedPackage"
+                                        )
                                         scope.launch {
-                                                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher
-                                                        .bringAllToMainDisplay()
-                                                if (selectedPackage.isNotEmpty()) {
+                                                // bringAllToMainDisplay() returns the list of packages it actually
+                                                // moved back from secondary displays. If non-empty, those apps
+                                                // deserve to keep focus on Display 0 — launching selectedPackage
+                                                // on top would immediately steal it (the user just brought their
+                                                // active app back, they don't want it bounced). Only fall through
+                                                // to launching selectedPackage when nothing was moved.
+                                                val movedBack =
+                                                        br.com.redesurftank.havalshisuku.managers
+                                                                .DisplayAppLauncher
+                                                                .bringAllToMainDisplay()
+                                                Log.w(
+                                                        BOTTOM_BAR_TAG,
+                                                        "Main display restore result: movedBack=${movedBack.joinToString(",")}"
+                                                )
+                                                if (movedBack.isEmpty() && effectiveSelectedPackage.isNotEmpty()) {
                                                         br.com.redesurftank.havalshisuku.managers
                                                                 .DisplayAppLauncher
                                                                 .getOrCreateDefaultConfig(
                                                                         context,
-                                                                        selectedPackage,
-                                                                        save = false
+                                                                        effectiveSelectedPackage
                                                                 )
                                                         br.com.redesurftank.havalshisuku.managers
                                                                 .DisplayAppLauncher.launchAnyApp(
                                                                 context,
-                                                                selectedPackage
+                                                                effectiveSelectedPackage
                                                         )
                                                 }
                                         }
@@ -1324,7 +1365,7 @@ fun AppMenuContent() {
                                                                                                                 Offset.Zero
                                                                                         ) {
                                                                                                 BottomBarState
-                                                                                                        .isMenuExpanded =
+                                                                                                        .isDeleteModeEnabled =
                                                                                                         false
                                                                                         }
                                                                                 }
@@ -1541,6 +1582,8 @@ fun SettingsMenuContent(drive: String, ev: String, regen: String, steer: String)
 @Composable
 fun BottomBarMenus() {
         val serviceManager = br.com.redesurftank.havalshisuku.managers.ServiceManager.getInstance()
+        var appMenuBounds by remember { mutableStateOf<Rect?>(null) }
+        var secondaryMenuBounds by remember { mutableStateOf<Rect?>(null) }
 
         var driveMode by remember {
                 mutableStateOf(
@@ -1602,19 +1645,23 @@ fun BottomBarMenus() {
                                 .background(
                                         Color.Black.copy(alpha = 0.4f)
                                 ) // Semi-transparent black overlay
-                                .clickable(
-                                        interactionSource =
-                                                remember {
-                                                        androidx.compose.foundation.interaction
-                                                                .MutableInteractionSource()
-                                                },
-                                        indication = null
-                                ) {
-                                        BottomBarState.isMenuExpanded = false
-                                        BottomBarState.isSettingsMenuExpanded = false
-                                        BottomBarState.isOverrideMenuExpanded = false
-                                        BottomBarState.isDeleteModeEnabled = false
-                                        BottomBarState.activeSliderType = null
+                                .pointerInput(appMenuBounds, secondaryMenuBounds) {
+                                        detectTapGestures { offset ->
+                                                val insideAppMenu =
+                                                        BottomBarState.isMenuExpanded &&
+                                                                appMenuBounds?.contains(offset) == true
+                                                val insideSecondaryMenu =
+                                                        (BottomBarState.isSettingsMenuExpanded ||
+                                                                        BottomBarState.isOverrideMenuExpanded) &&
+                                                                secondaryMenuBounds?.contains(offset) == true
+                                                if (!insideAppMenu && !insideSecondaryMenu) {
+                                                        BottomBarState.isMenuExpanded = false
+                                                        BottomBarState.isSettingsMenuExpanded = false
+                                                        BottomBarState.isOverrideMenuExpanded = false
+                                                        BottomBarState.isDeleteModeEnabled = false
+                                                        BottomBarState.activeSliderType = null
+                                                }
+                                        }
                                 },
                 contentAlignment = Alignment.BottomCenter
         ) {
@@ -1633,7 +1680,9 @@ fun BottomBarMenus() {
                                         modifier =
                                                 Modifier.padding(start = 16.dp)
                                                         .align(Alignment.BottomStart)
-                                                        .clickable(enabled = false) {}
+                                                        .onGloballyPositioned {
+                                                                appMenuBounds = it.boundsInRoot()
+                                                        }
                                 ) { AppMenuContent() }
                         }
 
@@ -1651,7 +1700,9 @@ fun BottomBarMenus() {
                                                                 else Alignment.BottomEnd
                                                         )
                                                         .padding(horizontal = 16.dp)
-                                                        .clickable(enabled = false) {}
+                                                        .onGloballyPositioned {
+                                                                secondaryMenuBounds = it.boundsInRoot()
+                                                        }
                                 ) {
                                         if (BottomBarState.isSettingsMenuExpanded) {
                                                 SettingsMenuContent(
@@ -2137,11 +2188,15 @@ private fun decodeBase64ToBitmap(base64Str: String): ImageBitmap? {
                 val decodedBytes = android.util.Base64.decode(cleanStr, android.util.Base64.DEFAULT)
                 val bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
                 if (bitmap != null) {
-                        cropBitmapTransparentMargins(bitmap).asImageBitmap()
+                        val cropped = cropBitmapTransparentMargins(bitmap)
+                        android.util.Log.d("BottomBarUI", "Successfully decoded and cropped. Orig size: ${bitmap.width}x${bitmap.height}, Cropped size: ${cropped.width}x${cropped.height}")
+                        cropped.asImageBitmap()
                 } else {
+                        android.util.Log.e("BottomBarUI", "decodeByteArray returned null for base64: ${base64Str.take(50)}...")
                         null
                 }
         } catch (e: Exception) {
+                android.util.Log.e("BottomBarUI", "Failed to decode base64: ${base64Str.take(50)}...", e)
                 null
         }
 }
@@ -2668,6 +2723,13 @@ fun VerticalSliderOverlay() {
         val serviceManager = ServiceManager.getInstance()
         val isACEnabled = serviceManager.getData(CarConstants.CAR_HVAC_POWER_MODE.getValue()) == "1"
 
+        LaunchedEffect(activeSlider, BottomBarState.sliderInteractionTrigger) {
+                delay(3000)
+                if (!BottomBarState.isSliderDragging) {
+                        BottomBarState.activeSliderType = null
+                }
+        }
+
         val density = LocalDensity.current
         val sliderWidthDp = 80.dp
         val sliderWidthPx = with(density) { sliderWidthDp.toPx() }
@@ -2711,7 +2773,7 @@ fun VerticalSliderOverlay() {
                                                 step = 0.5f,
                                                 displayValue = if (!isACEnabled || tempStr == "--" || tempVal <= -1) "--" else String.format(java.util.Locale.US, "%.1f°C", tempVal),
                                                 visualAidType = VisualAidType.TEMP,
-                                                modifier = Modifier.height(320.dp),
+                                                modifier = Modifier.height(380.dp),
                                                 isEnabled = isACEnabled,
                                                 onValueChange = { newValue ->
                                                         serviceManager.updateData(
@@ -2747,7 +2809,7 @@ fun VerticalSliderOverlay() {
                                                 step = 0.5f,
                                                 displayValue = if (!isACEnabled || tempStr == "--" || tempVal <= -1) "--" else String.format(java.util.Locale.US, "%.1f°C", tempVal),
                                                 visualAidType = VisualAidType.TEMP,
-                                                modifier = Modifier.height(320.dp),
+                                                modifier = Modifier.height(380.dp),
                                                 isEnabled = isACEnabled,
                                                 onValueChange = { newValue ->
                                                         serviceManager.updateData(
@@ -2877,16 +2939,6 @@ fun VerticalSlider(
                         verticalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxSize()
                 ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                        text = displayValue,
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontFamily = Michroma,
-                                        fontWeight = FontWeight.Bold
-                                )
-                        }
-
                         Box(
                                 modifier = Modifier
                                         .width(48.dp)
@@ -2894,31 +2946,37 @@ fun VerticalSlider(
                                         .padding(vertical = 10.dp)
                                         .onGloballyPositioned { trackHeightPx = it.size.height.toFloat() }
                                         .pointerInput(range, step, isEnabled) {
-                                                if (!isEnabled) return@pointerInput
-                                                awaitPointerEventScope {
-                                                        while (true) {
-                                                                val down = awaitFirstDown(requireUnconsumed = false)
-                                                                val startY = down.position.y
-                                                                val fractionStart = ((trackHeightPx - startY) / trackHeightPx).coerceIn(0f..1f)
-                                                                val rawValueStart = range.start + fractionStart * (range.endInclusive - range.start)
-                                                                val steppedStart = (rawValueStart / step).roundToInt() * step
-                                                                onValueChange(steppedStart.coerceIn(range))
+                                                 if (!isEnabled) return@pointerInput
+                                                 awaitPointerEventScope {
+                                                         while (true) {
+                                                                 val down = awaitFirstDown(requireUnconsumed = false)
+                                                                 BottomBarState.isSliderDragging = true
+                                                                 BottomBarState.sliderInteractionTrigger++
+                                                                 val startY = down.position.y
+                                                                 val fractionStart = ((trackHeightPx - startY) / trackHeightPx).coerceIn(0f..1f)
+                                                                 val rawValueStart = range.start + fractionStart * (range.endInclusive - range.start)
+                                                                 val steppedStart = (rawValueStart / step).roundToInt() * step
+                                                                 onValueChange(steppedStart.coerceIn(range))
 
-                                                                do {
-                                                                        val event = awaitPointerEvent()
-                                                                        val change = event.changes.firstOrNull() ?: break
-                                                                        if (change.pressed) {
-                                                                                change.consume()
-                                                                                val currentY = change.position.y
-                                                                                val fraction = ((trackHeightPx - currentY) / trackHeightPx).coerceIn(0f..1f)
-                                                                                val rawValue = range.start + fraction * (range.endInclusive - range.start)
-                                                                                val stepped = (rawValue / step).roundToInt() * step
-                                                                                onValueChange(stepped.coerceIn(range))
-                                                                        }
-                                                                } while (event.changes.any { it.pressed })
-                                                        }
-                                                }
-                                        }
+                                                                 do {
+                                                                         val event = awaitPointerEvent()
+                                                                         val change = event.changes.firstOrNull() ?: break
+                                                                         if (change.pressed) {
+                                                                                 change.consume()
+                                                                                 val currentY = change.position.y
+                                                                                 val fraction = ((trackHeightPx - currentY) / trackHeightPx).coerceIn(0f..1f)
+                                                                                 val rawValue = range.start + fraction * (range.endInclusive - range.start)
+                                                                                 val stepped = (rawValue / step).roundToInt() * step
+                                                                                 onValueChange(stepped.coerceIn(range))
+                                                                                 BottomBarState.sliderInteractionTrigger++
+                                                                         }
+                                                                 } while (event.changes.any { it.pressed })
+
+                                                                 BottomBarState.isSliderDragging = false
+                                                                 BottomBarState.sliderInteractionTrigger++
+                                                         }
+                                                 }
+                                         }
                         ) {
                                 Canvas(modifier = Modifier.fillMaxSize()) {
                                         val w = size.width

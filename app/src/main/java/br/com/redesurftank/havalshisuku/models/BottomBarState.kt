@@ -15,6 +15,8 @@ object BottomBarState {
 
     var activeSliderType by mutableStateOf<SliderType?>(null)
     var sliderPositionX by mutableStateOf(0f)
+    var sliderInteractionTrigger by mutableStateOf(0)
+    var isSliderDragging by mutableStateOf(false)
     var isVisible by mutableStateOf(true)
     var isMenuExpanded by mutableStateOf(false)
     var isSettingsMenuExpanded by mutableStateOf(false)
