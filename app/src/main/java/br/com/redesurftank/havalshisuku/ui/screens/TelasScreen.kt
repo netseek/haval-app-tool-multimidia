@@ -549,11 +549,46 @@ fun TelasTab() {
 
                     // Theme Selector - Horizontal compact carousel
                     Column {
-                        Text(
-                                "Tema do Painel (Toque para selecionar)",
-                                color = Color(0xFFB0B8C4),
-                                fontSize = 12.sp
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                    "Tema do Painel (Toque para selecionar)",
+                                    color = Color(0xFFB0B8C4),
+                                    fontSize = 12.sp
+                            )
+                            if (isFetchingThemes) {
+                                CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color(0xFF4A9EFF),
+                                        strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Buscar atualizações",
+                                        tint = Color(0xFF4A9EFF),
+                                        modifier = Modifier
+                                                .size(20.dp)
+                                                .clickable {
+                                                    isFetchingThemes = true
+                                                    scope.launch {
+                                                        try {
+                                                            localThemes = ThemeManager.getInstance(context).getLocalThemes()
+                                                            githubThemes = ThemeManager.getInstance(context)
+                                                                    .fetchThemesFromGithub(ThemeManager.THEME_REPO_URL)
+                                                        } catch (e: Exception) {
+                                                            Log.e("TelasTab", "Error refreshing themes", e)
+                                                        } finally {
+                                                            isFetchingThemes = false
+                                                        }
+                                                    }
+                                                }
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                         val allThemes =
                                 remember(githubThemes, localThemes) {
