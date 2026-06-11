@@ -219,7 +219,7 @@ fun CompactThemeCard(
                         }
                     } else {
                         Text(
-                                text = if (theme.name == "Default") "Original" else "Instalado v${theme.version}",
+                                text = if (theme.name == "Default") "Original" else "Instalado",
                                 color = if (isSelected) Color(0xFF4A9EFF) else Color(0xFFB0B8C4),
                                 fontSize = 11.sp
                         )
@@ -549,46 +549,11 @@ fun TelasTab() {
 
                     // Theme Selector - Horizontal compact carousel
                     Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                    "Tema do Painel (Toque para selecionar)",
-                                    color = Color(0xFFB0B8C4),
-                                    fontSize = 12.sp
-                            )
-                            if (isFetchingThemes) {
-                                CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        color = Color(0xFF4A9EFF),
-                                        strokeWidth = 2.dp
-                                )
-                            } else {
-                                Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = "Buscar atualizações",
-                                        tint = Color(0xFF4A9EFF),
-                                        modifier = Modifier
-                                                .size(20.dp)
-                                                .clickable {
-                                                    isFetchingThemes = true
-                                                    scope.launch {
-                                                        try {
-                                                            localThemes = ThemeManager.getInstance(context).getLocalThemes()
-                                                            githubThemes = ThemeManager.getInstance(context)
-                                                                    .fetchThemesFromGithub(ThemeManager.THEME_REPO_URL)
-                                                        } catch (e: Exception) {
-                                                            Log.e("TelasTab", "Error refreshing themes", e)
-                                                        } finally {
-                                                            isFetchingThemes = false
-                                                        }
-                                                    }
-                                                }
-                                )
-                            }
-                        }
+                        Text(
+                                "Tema do Painel (Toque para selecionar)",
+                                color = Color(0xFFB0B8C4),
+                                fontSize = 12.sp
+                        )
                         Spacer(Modifier.height(8.dp))
                         val allThemes =
                                 remember(githubThemes, localThemes) {
@@ -652,7 +617,7 @@ fun TelasTab() {
                                                         name = "Default",
                                                         description = remoteDefault?.description
                                                                         ?: "Visual clássico do carro",
-                                                        version = remoteDefault?.version ?: "1.1.10",
+                                                        version = remoteDefault?.version ?: "1.0.0",
                                                         thumbnailUrl = remoteDefault?.thumbnailUrl
                                                                         ?: "",
                                                         mainFile = remoteDefault?.mainFile ?: "",
@@ -755,9 +720,11 @@ fun TelasTab() {
                                                                 if (theme.folderName == "Default" ||
                                                                                 theme.name ==
                                                                                         "Default"
-                                                                )
-                                                                        ""
-                                                                else theme.folderName
+                                                                ) {
+                                                                    if (isDefaultDownloaded)
+                                                                            "Default"
+                                                                    else ""
+                                                                } else theme.folderName
                                                         )
                                                     }
                                                 } else {
@@ -779,13 +746,7 @@ fun TelasTab() {
                                                                             SharedPreferencesKeys
                                                                                     .ACTIVE_CUSTOM_THEME
                                                                                     .key,
-                                                                            if (theme.folderName ==
-                                                                                            "Default" ||
-                                                                                            theme.name ==
-                                                                                                    "Default"
-                                                                            )
-                                                                                    ""
-                                                                            else theme.folderName
+                                                                            theme.folderName
                                                                     )
                                                                 }
                                                             }
@@ -812,13 +773,7 @@ fun TelasTab() {
                                                                         SharedPreferencesKeys
                                                                                 .ACTIVE_CUSTOM_THEME
                                                                                 .key,
-                                                                        if (theme.folderName ==
-                                                                                        "Default" ||
-                                                                                        theme.name ==
-                                                                                                "Default"
-                                                                        )
-                                                                                ""
-                                                                        else theme.folderName
+                                                                        theme.folderName
                                                                 )
                                                             }
                                                         }
@@ -1816,53 +1771,6 @@ fun TelasTab() {
                                                         horizontalArrangement =
                                                                 Arrangement.spacedBy(8.dp)
                                                 ) {
-                                                    Button(
-                                                            onClick = {
-                                                                scope.launch {
-                                                                    DisplayAppLauncher
-                                                                            .sendToDisplay(config)
-                                                                }
-                                                            },
-                                                            enabled = allClusterFunctionsEnabled,
-                                                            modifier =
-                                                                    Modifier.weight(1f)
-                                                                            .height(44.dp),
-                                                            shape = RoundedCornerShape(8.dp),
-                                                            contentPadding =
-                                                                    PaddingValues(
-                                                                            horizontal = 4.dp,
-                                                                            vertical = 0.dp
-                                                                    ),
-                                                            colors =
-                                                                    ButtonDefaults.buttonColors(
-                                                                            containerColor =
-                                                                                    Color(
-                                                                                            0xFF4A9EFF
-                                                                                    ),
-                                                                            contentColor =
-                                                                                    Color.White
-                                                                    )
-                                                    ) {
-                                                        Row(
-                                                                horizontalArrangement =
-                                                                        Arrangement.spacedBy(4.dp),
-                                                                verticalAlignment =
-                                                                        Alignment.CenterVertically
-                                                        ) {
-                                                            Icon(
-                                                                    imageVector =
-                                                                            Icons.Default.ArrowBack,
-                                                                    contentDescription = null,
-                                                                    modifier = Modifier.size(20.dp)
-                                                            )
-                                                            Text(
-                                                                    "Enviar",
-                                                                    fontSize = 13.sp,
-                                                                    fontWeight = FontWeight.Bold
-                                                            )
-                                                        }
-                                                    }
-
                                                     OutlinedButton(
                                                             onClick = {
                                                                 scope.launch {
@@ -1904,13 +1812,60 @@ fun TelasTab() {
                                                         ) {
                                                             Icon(
                                                                     imageVector =
+                                                                            Icons.Default.ArrowBack,
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(20.dp)
+                                                            )
+                                                            Text(
+                                                                    "Trazer",
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = FontWeight.Bold
+                                                            )
+                                                        }
+                                                    }
+
+                                                    Button(
+                                                            onClick = {
+                                                                scope.launch {
+                                                                    DisplayAppLauncher
+                                                                            .sendToDisplay(config)
+                                                                }
+                                                            },
+                                                            enabled = allClusterFunctionsEnabled,
+                                                            modifier =
+                                                                    Modifier.weight(1f)
+                                                                            .height(44.dp),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            contentPadding =
+                                                                    PaddingValues(
+                                                                            horizontal = 4.dp,
+                                                                            vertical = 0.dp
+                                                                    ),
+                                                            colors =
+                                                                    ButtonDefaults.buttonColors(
+                                                                            containerColor =
+                                                                                    Color(
+                                                                                            0xFF4A9EFF
+                                                                                    ),
+                                                                            contentColor =
+                                                                                    Color.White
+                                                                    )
+                                                    ) {
+                                                        Row(
+                                                                horizontalArrangement =
+                                                                        Arrangement.spacedBy(4.dp),
+                                                                verticalAlignment =
+                                                                        Alignment.CenterVertically
+                                                        ) {
+                                                            Icon(
+                                                                    imageVector =
                                                                             Icons.Default
                                                                                     .ArrowForward,
                                                                     contentDescription = null,
                                                                     modifier = Modifier.size(20.dp)
                                                             )
                                                             Text(
-                                                                    "Trazer",
+                                                                    "Enviar",
                                                                     fontSize = 13.sp,
                                                                     fontWeight = FontWeight.Bold
                                                             )
@@ -2216,8 +2171,7 @@ fun AppEditorSection(initialConfig: DisplayAppConfig?, onSave: (DisplayAppConfig
     var showAppPicker by remember { mutableStateOf(false) }
     var showInterconnectionConfirmDialog by remember { mutableStateOf<InstalledAppInfo?>(null) }
     var showRenameDialog by remember { mutableStateOf(false) }
-    var previewActive by remember { mutableStateOf(initialConfig != null) }
-    var hasSaved by remember { mutableStateOf(false) }
+    var previewActive by remember { mutableStateOf(false) }
 
     val resolution =
             remember(selectedDisplay) {
@@ -2269,21 +2223,7 @@ fun AppEditorSection(initialConfig: DisplayAppConfig?, onSave: (DisplayAppConfig
             selectedIconColor
     ) {
         if (previewActive && selectedApp != null) {
-            // Debounce: each slider tick restarts this effect, cancelling any
-            // pending call below — only the value after dragging stops is sent.
-            delay(250)
             currentConfig()?.let { config -> DisplayAppLauncher.launchApp(config) }
-        }
-    }
-
-    // Restore the original config if the editor is closed without saving
-    DisposableEffect(Unit) {
-        onDispose {
-            if (!hasSaved && initialConfig != null) {
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                    DisplayAppLauncher.launchApp(initialConfig)
-                }
-            }
         }
     }
 
@@ -2618,12 +2558,7 @@ fun AppEditorSection(initialConfig: DisplayAppConfig?, onSave: (DisplayAppConfig
         // Action buttons
         Spacer(Modifier.height(8.dp))
         Button(
-                onClick = {
-                    currentConfig()?.let {
-                        hasSaved = true
-                        onSave(it)
-                    }
-                },
+                onClick = { currentConfig()?.let { onSave(it) } },
                 enabled = selectedApp != null,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A9EFF)),
                 modifier = Modifier.fillMaxWidth(),
