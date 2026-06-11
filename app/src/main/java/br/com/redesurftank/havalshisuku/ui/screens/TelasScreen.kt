@@ -219,7 +219,7 @@ fun CompactThemeCard(
                         }
                     } else {
                         Text(
-                                text = if (theme.name == "Default") "Original v${theme.version}" else "Instalado v${theme.version}",
+                                text = if (theme.name == "Default") "Original" else "Instalado v${theme.version}",
                                 color = if (isSelected) Color(0xFF4A9EFF) else Color(0xFFB0B8C4),
                                 fontSize = 11.sp
                         )
