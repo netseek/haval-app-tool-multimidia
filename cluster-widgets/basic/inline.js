@@ -147,6 +147,7 @@ processHtml(indexHtmlPath, appOutputPath);
 inlineDynamicAssets(appOutputPath);
 
 // Copy to Android resources
+/*
 var androidRawPath = path.join(__dirname, '..', '..', 'app', 'src', 'main', 'res', 'raw', 'app.html');
 try {
   fs.copyFileSync(appOutputPath, androidRawPath);
@@ -154,6 +155,7 @@ try {
 } catch (err) {
   console.error(`❌ Erro ao copiar para Android: ${err.message}`);
 }
+*/
 
 // Remove pasta assets vazia
 var assetsDir = path.join(__dirname, 'dist', 'assets');

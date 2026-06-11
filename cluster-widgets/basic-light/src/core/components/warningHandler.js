@@ -11,6 +11,14 @@ export function initWarningHandler() {
     window.updateWarning = function(key, value) {
         const state = stateManager.getState();
         const warnings = state.warnings || {};
+
+        // Only update the warnings object if the value for this key actually changed.
+        // Object.assign always produces a new reference, which bypasses the !== guard
+        // in setState and triggers spurious render() calls (causing screen flicker).
+        if (warnings[key] === value) {
+            return; // Nothing changed — skip all downstream processing
+        }
+
         const newWarnings = Object.assign({}, warnings, { [key]: value });
         stateManager.set('warnings', newWarnings);
         
@@ -39,10 +47,12 @@ export function initWarningHandler() {
         }
         
         const currentActive = stateManager.get('warningActive');
-        const cardId = stateManager.get('cardId');
         const shouldBeWarnActive = hasCriticalWarning;
 
-        stateManager.set('warningDismissed', false);
+        // Only reset warningDismissed on a genuine new warning onset (false → true transition)
+        if (hasCriticalWarning && currentActive === false) {
+            stateManager.set('warningDismissed', false);
+        }
 
         if (currentActive !== hasCriticalWarning) {
             stateManager.set('warningActive', hasCriticalWarning);

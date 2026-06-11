@@ -26,6 +26,72 @@ let menuWrapper = null;
 let dashboardCleanup = null;
 const screenCache = {};
 
+function isProjectionMapDisplayActive() {
+    return get('projectionMirrorInDash') === true ||
+        get('carPlayInDash') === true ||
+        get('projectionPreparingD3') === true;
+}
+
+function isProjectionCardOverlayActive() {
+    if (!isProjectionMapDisplayActive()) {
+        return false;
+    }
+    if (get('projectionCardOverlayAllowed') !== true) {
+        return false;
+    }
+    const screen = get('screen');
+    return isMainMenuSessionScreen(screen) || screen === 'aircon';
+}
+
+function isMainMenuDetailScreen(screen) {
+    return screen === 'graph' || screen === 'graphs' || screen === 'regen' || screen === 'display_selection';
+}
+
+function isMainMenuSessionScreen(screen) {
+    return screen === 'main_menu' || isMainMenuDetailScreen(screen);
+}
+
+function isMainMenuSessionVisible(cardId, screen) {
+    if (isProjectionMapDisplayActive()) {
+        return false;
+    }
+    return get('mainMenuSessionActive') === true &&
+        isMainMenuSessionScreen(screen) &&
+        get('warningActive') !== true &&
+        cardId == 0;
+}
+
+function isWarningUiActive(cardId, screen) {
+    if (get('warningActive') === true) {
+        return true;
+    }
+    if (isMainMenuSessionVisible(cardId, screen)) {
+        return false;
+    }
+    return get('warningDismissed') !== true && cardId == 0;
+}
+
+function isRightMenuVisible(cardId, screen) {
+    const projectionMapDisplayActive = isProjectionMapDisplayActive();
+    const projectionCardOverlayActive = isProjectionCardOverlayActive();
+    if (projectionMapDisplayActive) {
+        return projectionCardOverlayActive;
+    }
+    if (cardId == 0) {
+        return isMainMenuSessionVisible(cardId, screen);
+    }
+    return true;
+}
+
+function getEffectiveDisplayMode() {
+    // Projection on display 3 temporarily uses the Mapa layout without
+    // persisting over the user's saved display choice.
+    if (isProjectionMapDisplayActive()) {
+        return 'Mapa';
+    }
+    return get('display') || 'Normal';
+}
+
 // Initial state from URL parameters
 const urlParams = new URLSearchParams(window.location.search);
 const nativeMockEnabled =
@@ -71,12 +137,15 @@ function initializeLayout() {
 
         // Pre-load critical screens
         if (menuWrapper) {
-            const cachedScreens = ['main_menu', 'aircon'];
+            const cachedScreens = ['main_menu', 'aircon', 'graph', 'regen', 'display_selection'];
             cachedScreens.forEach(screen => {
                 try {
                     let result = null;
                     if (screen === 'main_menu') result = createMainMenu();
                     else if (screen === 'aircon') result = createAcControlScreen();
+                    else if (screen === 'graph') result = createGraphScreen();
+                    else if (screen === 'regen') result = createRegenScreen();
+                    else if (screen === 'display_selection') result = createDisplaySelectionScreen();
 
                     if (result) {
                         const element = result.element || result;
@@ -106,27 +175,39 @@ function initializeLayout() {
 function render() {
     logger.enter('render', { screen: get('screen'), display: get('display') });
     const screen = get('screen');
-    const displayMode = get('display') || 'Normal';
+    const projectionMapDisplayActive = isProjectionMapDisplayActive();
+    const displayMode = getEffectiveDisplayMode();
 
     // Update app class based on display mode
     if (appContainer) {
         logger.log('Rendering screen:', screen);
-        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && c !== 'cluster-disabled' && c !== 'warn-is-active');
+        let classes = appContainer.className.split(' ').filter(c => !c.startsWith('display-') && !c.startsWith('theme-') && !c.startsWith('screen-') && c !== 'cluster-disabled' && c !== 'warn-is-active' && c !== 'carplay-in-dash' && c !== 'projection-mirror-in-dash' && c !== 'projection-preparing-d3' && c !== 'projection-map-display-active' && c !== 'projection-card-overlay-active');
         classes.push('display-' + displayMode.toLowerCase());
+        classes.push('screen-' + String(screen).replace(/_/g, '-'));
 
         if (get('clusterEnabled') === false) {
             classes.push('cluster-disabled');
         }
 
-        if (get('cardId') == 0 || (get('warningDismissed') !== true && get('warningActive') === true)) {
+        if (projectionMapDisplayActive) {
+            classes.push('theme-mirror-cluster');
+            classes.push('projection-mirror-in-dash');
+            classes.push('projection-map-display-active');
+            if (get('projectionPreparingD3') === true) {
+                classes.push('projection-preparing-d3');
+            }
+            if (isProjectionCardOverlayActive()) {
+                classes.push('projection-card-overlay-active');
+            }
+        }
+
+        if (get('carPlayInDash') === true) {
+            classes.push('carplay-in-dash');
+        }
+
+        if (isWarningUiActive(get('cardId'), screen)) {
             classes.push('warn-is-active');
         }
-        console.error('[Render State] ' + JSON.stringify({
-            cardId: get('cardId'),
-            warningActive: get('warningActive'),
-            warningDismissed: get('warningDismissed'),
-            classes: classes.join(' ')
-        }));
         if (nativeMockEnabled) {
             classes.push('native-mock-enabled');
         }
@@ -136,10 +217,12 @@ function render() {
     }
 
 
-    // Hide all cached components
-    Object.values(screenCache).forEach(comp => {
-        const el = comp.element || comp;
-        el.style.display = 'none';
+    // Hide all cached components except the active screen to prevent visual flicker
+    Object.entries(screenCache).forEach(([key, comp]) => {
+        if (key !== screen) {
+            const el = comp.element || comp;
+            el.style.display = 'none';
+        }
     });
 
     // Cleanup previous non-cached component
@@ -157,11 +240,19 @@ function render() {
         }
     }
 
+    if (menuWrapper) {
+        const projectionCardOverlayActive = isProjectionCardOverlayActive();
+        const rightMenuVisible = isRightMenuVisible(get('cardId'), screen);
+        menuWrapper.style.display = (!rightMenuVisible || (projectionMapDisplayActive && !projectionCardOverlayActive)) ? 'none' : 'block';
+    }
+
     if (screenCache[screen]) {
         // Show cached component
         const comp = screenCache[screen];
         const el = comp.element || comp;
-        el.style.display = 'block';
+        if (el.style.display !== 'block') {
+            el.style.display = 'block';
+        }
         currentComponent = comp;
     } else {
         // Create non-cached component
@@ -204,7 +295,6 @@ function render() {
 
 subscribe('warningActive', () => render());
 subscribe('warningDismissed', () => render());
-subscribe('cardId', () => render());
 initializeLayout();
 
 // Start rendering and subscribe to listen for screen changes thus triggering new render
@@ -212,22 +302,28 @@ subscribe('screen', render);
 subscribe('display', render);
 
 subscribe('clusterEnabled', render);
-// subscribe('cardId', render); // REMOVED: Triggers double-render as cardId listener already sets screen
+subscribe('carPlayInDash', render);
+subscribe('projectionMirrorInDash', render);
+subscribe('projectionPreparingD3', render);
+subscribe('projectionCardOverlayAllowed', render);
+// cardId renders are handled after card-specific state sync below to avoid
+// rendering once with stale screen/session state and again after setState().
 render();
-
-// Notify Android that Javascript is fully ready
-if (window.Android && window.Android.onJsReady) {
-    window.Android.onJsReady();
-}
 
 
 
 // Handle Card ID transitions
 subscribe('cardId', (cardId) => {
     logger.log('cardId change:', cardId);
+    let screenUpdatedByCard = false;
 
     if (cardId == 1 || cardId == 3) {
         setState('warningDismissed', false);
+    }
+    if (cardId == 1) {
+        setState('mainMenuSessionActive', true);
+    } else if (cardId == 3) {
+        setState('mainMenuSessionActive', false);
     }
 
     // Sync with Android bridge for correct app resizing
@@ -237,15 +333,28 @@ subscribe('cardId', (cardId) => {
 
     // 0 = hide the right menu display
     if (menuWrapper) {
-        menuWrapper.style.display = (cardId == 0) ? 'none' : 'block';
+        const projectionMapDisplayActive = isProjectionMapDisplayActive();
+        const projectionCardOverlayActive = isProjectionCardOverlayActive();
+        const rightMenuVisible = isRightMenuVisible(cardId, get('screen'));
+        menuWrapper.style.display = (!rightMenuVisible || (projectionMapDisplayActive && !projectionCardOverlayActive)) ? 'none' : 'block';
     }
 
     if (cardId == 1) {
         // 1 = go to main regular menu
-        setState('screen', 'main_menu');
+        if (get('screen') !== 'main_menu') {
+            screenUpdatedByCard = true;
+            setState('screen', 'main_menu');
+        }
     } else if (cardId == 3) {
         // 3 = set to AC menu
-        setState('screen', 'aircon');
+        if (get('screen') !== 'aircon') {
+            screenUpdatedByCard = true;
+            setState('screen', 'aircon');
+        }
+    }
+
+    if (!screenUpdatedByCard) {
+        render();
     }
 });
 
@@ -253,6 +362,11 @@ subscribe('cardId', (cardId) => {
 window.showScreen = function (screenName) {
     try {
         logger.enter('window.showScreen', screenName);
+        if (isMainMenuSessionScreen(screenName)) {
+            setState('mainMenuSessionActive', true);
+        } else {
+            setState('mainMenuSessionActive', false);
+        }
         setState('screen', screenName);
         logger.leave('window.showScreen');
     } catch (e) {
@@ -294,6 +408,32 @@ window.control = function (key, value) {
     } catch (e) {
         console.error('[Error] Bridge control failed for key ' + key + ':', e);
     }
+};
+
+window.__havalProjectionDebug = function () {
+    const app = document.getElementById('app');
+    const menu = document.querySelector('.dashboard-menu-container');
+    const main = document.querySelector('.main-container');
+    return {
+        carPlayInDash: get('carPlayInDash'),
+        projectionMirrorInDash: get('projectionMirrorInDash'),
+        projectionPreparingD3: get('projectionPreparingD3'),
+        cardId: get('cardId'),
+        screen: get('screen'),
+        mainMenuSessionActive: get('mainMenuSessionActive'),
+        display: get('display'),
+        effectiveDisplay: getEffectiveDisplayMode(),
+        projectionCardOverlayAllowed: get('projectionCardOverlayAllowed'),
+        projectionMapDisplayActive: isProjectionMapDisplayActive(),
+        projectionCardOverlayActive: isProjectionCardOverlayActive(),
+        appClass: app ? app.className : null,
+        menuDisplay: menu ? getComputedStyle(menu).display : null,
+        menuVisibility: menu ? getComputedStyle(menu).visibility : null,
+        menuOpacity: menu ? getComputedStyle(menu).opacity : null,
+        mainDisplay: main ? getComputedStyle(main).display : null,
+        mainVisibility: main ? getComputedStyle(main).visibility : null,
+        mainOpacity: main ? getComputedStyle(main).opacity : null,
+    };
 };
 
 window.cleanup = function () {

@@ -119,4 +119,3 @@ export function createMainMenu() {
 
     return { element: container, cleanup };
 }
-

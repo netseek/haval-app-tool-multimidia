@@ -59,12 +59,15 @@ function initializeLayout() {
 
         // Pre-load critical screens
         if (menuWrapper) {
-            const cachedScreens = ['main_menu', 'aircon'];
+            const cachedScreens = ['main_menu', 'aircon', 'graph', 'regen', 'display_selection'];
             cachedScreens.forEach(screen => {
                 try {
                     let result = null;
                     if (screen === 'main_menu') result = createMainMenu();
                     else if (screen === 'aircon') result = createAcControlScreen();
+                    else if (screen === 'graph') result = createGraphScreen();
+                    else if (screen === 'regen') result = createRegenScreen();
+                    else if (screen === 'display_selection') result = createDisplaySelectionScreen();
 
                     if (result) {
                         const element = result.element || result;
@@ -109,22 +112,18 @@ function render() {
         if (get('cardId') == 0 || (get('warningDismissed') !== true && get('warningActive') === true)) {
             classes.push('warn-is-active');
         }
-        console.error('[Render State] ' + JSON.stringify({
-            cardId: get('cardId'),
-            warningActive: get('warningActive'),
-            warningDismissed: get('warningDismissed'),
-            classes: classes.join(' ')
-        }));
 
         appContainer.className = classes.join(' ').trim();
         logger.log('App classes:', appContainer.className);
     }
 
 
-    // Hide all cached components
-    Object.values(screenCache).forEach(comp => {
-        const el = comp.element || comp;
-        el.style.display = 'none';
+    // Hide all cached components except the active screen to prevent visual flicker
+    Object.entries(screenCache).forEach(([key, comp]) => {
+        if (key !== screen) {
+            const el = comp.element || comp;
+            el.style.display = 'none';
+        }
     });
 
     // Cleanup previous non-cached component
@@ -146,7 +145,9 @@ function render() {
         // Show cached component
         const comp = screenCache[screen];
         const el = comp.element || comp;
-        el.style.display = 'block';
+        if (el.style.display !== 'block') {
+            el.style.display = 'block';
+        }
         currentComponent = comp;
     } else {
         // Create non-cached component
@@ -199,11 +200,6 @@ subscribe('display', render);
 subscribe('clusterEnabled', render);
 // subscribe('cardId', render); // REMOVED: Triggers double-render as cardId listener already sets screen
 render();
-
-// Notify Android that Javascript is fully ready
-if (window.Android && window.Android.onJsReady) {
-    window.Android.onJsReady();
-}
 
 
 
