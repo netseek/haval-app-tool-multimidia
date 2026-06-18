@@ -723,6 +723,16 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                                      TAG,
                                                      "WebView finished loading (PID: ${android.os.Process.myPid()}): $url"
                                              )
+                                             // The bundled web assets/themes do not call
+                                             // window.Android.onJsReady() themselves (older bridge
+                                             // handshake; bootstrap used to live in onPageFinished).
+                                             // Trigger it here so the initial state sync + heartbeat
+                                             // injection run; otherwise the WebView watchdog never
+                                             // sees a heartbeat and reloads the page forever.
+                                             wv.evaluateJavascript(
+                                                     "if(window.Android&&window.Android.onJsReady){window.Android.onJsReady();}",
+                                                     null
+                                             )
                                          }
                                     }
                                 }
