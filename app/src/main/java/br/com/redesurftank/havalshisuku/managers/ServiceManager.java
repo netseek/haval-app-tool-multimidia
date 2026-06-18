@@ -273,6 +273,17 @@ public class ServiceManager {
     // own skip switch), so handling them here cannot double-skip USB/BT/local media.
     private static final int SOURCE_ANDROID_AUTO = 402;
     private static final int SOURCE_PHONELINK_403 = 403;
+    // --- Media-button guard: while a projection source (AA 402 / PhoneLink 403) is the active audio
+    // source, OWN the Android media-button session so wheel/hardware media keys don't leak to a paused
+    // local app (e.g. YouTube) that otherwise hogs that session. AA has no MediaSession of its own, so
+    // without this the OS delivers the key to YouTube while we drive AA in parallel -> double-play.
+    // We only steal-and-swallow the OS media button (AA stays driven by the IInputListener path); when
+    // the source is local we release it so normal apps regain their buttons. Trigger = lightweight poll
+    // of getCurrentAudioSource() (can be replaced by a projection-lifecycle hook once validated).
+    private android.media.session.MediaSession mediaButtonGuard;
+    private boolean mediaButtonGuardActive = false;
+    private Runnable audioSourcePollRunnable;
+    private static final long AUDIO_SOURCE_POLL_MS = 1500;
     private boolean isClusterHeartbeatRunning = false;
     private int clusterHeartBeatCount = 0;
     private int clusterCardView = 0;
@@ -363,6 +374,15 @@ public class ServiceManager {
             aaLinkCommandBinder = null;
             mediaCenterPoolBinder = null;
             playServiceBinder = null;
+            if (audioSourcePollRunnable != null && backgroundHandler != null) {
+                backgroundHandler.removeCallbacks(audioSourcePollRunnable);
+            }
+            audioSourcePollRunnable = null;
+            if (mediaButtonGuard != null) {
+                try { mediaButtonGuard.setActive(false); mediaButtonGuard.release(); } catch (Exception ignored) {}
+                mediaButtonGuard = null;
+            }
+            mediaButtonGuardActive = false;
             if (handlerThread != null && handlerThread.isAlive()) {
                 handlerThread.quitSafely();
             }
@@ -573,6 +593,7 @@ public class ServiceManager {
             } catch (Exception e) {
                 Log.e(TAG, "[WheelMedia] bind MediaCenterService failed", e);
             }
+            setupMediaButtonGuard();
 
             listener = new IListener.Stub() {
                 @Override public void onDataChanged(String key, String value) { OnDataChanged(key, value); }
@@ -1105,6 +1126,97 @@ public class ServiceManager {
         } finally {
             reply.recycle();
             data.recycle();
+        }
+    }
+
+    /**
+     * Create our media-button guard session and start the source poll. The session, when active +
+     * PLAYING, becomes the OS "media button session" (outranking a paused YouTube), so hardware/wheel
+     * media keys arrive at onMediaButtonEvent below instead of YouTube. We swallow them there while a
+     * projection source is active; AA itself is still driven by the IInputListener -> handleWheelMediaKey
+     * path, so this layer only stops the parallel leak to local apps.
+     */
+    private void setupMediaButtonGuard() {
+        try {
+            if (mediaButtonGuard != null) return;
+            mediaButtonGuard = new android.media.session.MediaSession(App.getContext(), "HavalWheelMediaGuard");
+            mediaButtonGuard.setCallback(new android.media.session.MediaSession.Callback() {
+                @Override
+                public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
+                    if (mediaButtonGuardActive) {
+                        KeyEvent ke = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                        Log.w(TAG, "[MediaGuard] swallowed OS media button (projection active): " + ke);
+                        return true; // consumed -> does not reach YouTube; AA driven via IInputListener
+                    }
+                    return super.onMediaButtonEvent(mediaButtonIntent);
+                }
+                @Override public void onSkipToNext() { /* swallow while guarding */ }
+                @Override public void onSkipToPrevious() { /* swallow while guarding */ }
+                @Override public void onPlay() { /* swallow while guarding */ }
+                @Override public void onPause() { /* swallow while guarding */ }
+            });
+            startAudioSourcePoll();
+            Log.w(TAG, "[MediaGuard] initialized");
+        } catch (Exception e) {
+            Log.e(TAG, "[MediaGuard] setup failed", e);
+        }
+    }
+
+    private void startAudioSourcePoll() {
+        if (backgroundHandler == null) return;
+        audioSourcePollRunnable = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    int src = getCurrentAudioSource();
+                    boolean projecting = (src == SOURCE_ANDROID_AUTO || src == SOURCE_PHONELINK_403);
+                    if (projecting && !mediaButtonGuardActive) {
+                        activateMediaButtonGuard();
+                    } else if (!projecting && mediaButtonGuardActive) {
+                        deactivateMediaButtonGuard();
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "[MediaGuard] poll error", e);
+                } finally {
+                    if (backgroundHandler != null) {
+                        backgroundHandler.postDelayed(this, AUDIO_SOURCE_POLL_MS);
+                    }
+                }
+            }
+        };
+        backgroundHandler.postDelayed(audioSourcePollRunnable, AUDIO_SOURCE_POLL_MS);
+    }
+
+    /** Become the OS media-button session (active + PLAYING) so paused local apps stop getting keys. */
+    private void activateMediaButtonGuard() {
+        if (mediaButtonGuard == null) return;
+        try {
+            android.media.session.PlaybackState ps = new android.media.session.PlaybackState.Builder()
+                    .setActions(android.media.session.PlaybackState.ACTION_SKIP_TO_NEXT
+                            | android.media.session.PlaybackState.ACTION_SKIP_TO_PREVIOUS
+                            | android.media.session.PlaybackState.ACTION_PLAY_PAUSE
+                            | android.media.session.PlaybackState.ACTION_PLAY
+                            | android.media.session.PlaybackState.ACTION_PAUSE)
+                    .setState(android.media.session.PlaybackState.STATE_PLAYING, 0, 1.0f)
+                    .build();
+            mediaButtonGuard.setPlaybackState(ps);
+            mediaButtonGuard.setActive(true);
+            mediaButtonGuardActive = true;
+            Log.w(TAG, "[MediaGuard] ACTIVE - owning OS media button (projection source)");
+        } catch (Exception e) {
+            Log.e(TAG, "[MediaGuard] activate failed", e);
+        }
+    }
+
+    /** Release the OS media-button session so local apps (USB/BT/YouTube) get their buttons back. */
+    private void deactivateMediaButtonGuard() {
+        if (mediaButtonGuard == null) return;
+        try {
+            mediaButtonGuardActive = false;
+            mediaButtonGuard.setActive(false);
+            Log.w(TAG, "[MediaGuard] released OS media button (local source)");
+        } catch (Exception e) {
+            Log.e(TAG, "[MediaGuard] deactivate failed", e);
         }
     }
 
