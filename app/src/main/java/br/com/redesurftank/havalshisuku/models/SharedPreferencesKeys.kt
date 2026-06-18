@@ -58,6 +58,10 @@ enum class SharedPreferencesKeys(val key: String, val description: String) {
             "enableInstrumentCustomMediaIntegration",
             "Habilitar integração personalizada de mídia no painel de instrumentos"
     ),
+    ENABLE_CLUSTER_PERF_LOGGING(
+            "enableClusterPerfLogging",
+            "Habilitar logs de performance do cluster (ClusterPerf) para diagnóstico"
+    ),
     ENABLE_CUSTOM_MENU(
             "enableCustomMenu",
             "Exibe um menu customizado no cluster controlado pelas teclas do volante"

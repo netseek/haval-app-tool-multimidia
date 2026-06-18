@@ -105,9 +105,34 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         lastHeartbeatTime =
                                 System.currentTimeMillis() // Reset to avoid immediate re-trigger
                     }
-                    handler.postDelayed(this, 5000) // Check every 5s
+                    // Check every 15s (was 5s) to reduce wakeup churn. Worst-case dead-WebView
+                    // detection latency is now ~30s (15s no-heartbeat threshold + up to 15s
+                    // until next check).
+                    handler.postDelayed(this, 15000)
                 }
             }
+
+    // Mirrors the ENABLE_CLUSTER_PERF_LOGGING preference into the perf logger's runtime
+    // gate. Off by default; turned on only when the pref is set, for on-car troubleshooting.
+    private fun applyClusterPerfLoggingPref() {
+        ClusterPerfEventLogger.loggingEnabled =
+                preferences.getBoolean(
+                        SharedPreferencesKeys.ENABLE_CLUSTER_PERF_LOGGING.key,
+                        false
+                )
+    }
+
+    // Emits a [PERF_EVENT] line (heap / native heap / thread count / process+system CPU%)
+    // tagged with the current cluster context. No-op unless ClusterPerfEventLogger is enabled.
+    private fun logClusterPerfEvent(event: String, details: Map<String, Any?> = emptyMap()) {
+        ClusterPerfEventLogger.log(
+                event,
+                mapOf(
+                        "card" to currentCard,
+                        "warningActive" to isWarningActive
+                ) + details
+        )
+    }
 
     val monitoredWarningKeys =
             setOf(
@@ -136,6 +161,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
     private val prefsListener =
             SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                if (key == SharedPreferencesKeys.ENABLE_CLUSTER_PERF_LOGGING.key) {
+                    applyClusterPerfLoggingPref()
+                }
                 if (key in
                                 listOf(
                                         SharedPreferencesKeys
@@ -252,6 +280,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                                 Log.w(TAG, "Ignoring card change to 1 because active warning forces Card 0 visually.")
                                 return@ensureUi
                             }
+                            val previousCard = currentCard
+                            // B3: idempotency guard. A CLUSTER_CARD_CHANGED for the card we're
+                            // already on is a no-op — skip the redundant cardId JS push and the
+                            // syncSecondaryDisplayApps(3) call (which polls `am stack list` via
+                            // Shizuku). Genuine card changes still fall through below.
+                            if (newCard == previousCard) {
+                                logClusterPerfEvent("card_change_noop", mapOf("card" to newCard))
+                                return@ensureUi
+                            }
                             currentCard = newCard
                             lastAppliedConfigs
                                     .clear() // Invalidate cache on card change to force re-sync
@@ -259,6 +296,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             updateVirtualClusterVisibility()
                             syncSecondaryDisplayApps(3)
                             MainUiManager.getInstance().handleCardChange(currentCard)
+                            logClusterPerfEvent(
+                                    "card_change",
+                                    mapOf("from" to previousCard, "to" to currentCard)
+                            )
                             if (currentCard == 1 || currentCard == 3) {
                                 isWarningDismissed = false
                                 updateValuesWebView()
@@ -370,6 +411,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyClusterPerfLoggingPref()
         handler.post(clockRunnable)
         handler.post(watchdogRunnable)
         preferences.registerOnSharedPreferenceChangeListener(prefsListener)
@@ -647,7 +689,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         webChromeClient = object : WebChromeClient() {
                             override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
                                 consoleMessage?.let { msg ->
-                                    Log.w(TAG, "JS_CONSOLE: [${msg.messageLevel()}] ${msg.message()} (at ${msg.sourceId()}:${msg.lineNumber()})")
+                                    val text =
+                                            "JS_CONSOLE: ${msg.message()} (at ${msg.sourceId()}:${msg.lineNumber()})"
+                                    // Map JS console levels to logcat severities so they can be
+                                    // filtered by level during troubleshooting.
+                                    when (msg.messageLevel()) {
+                                        ConsoleMessage.MessageLevel.ERROR -> Log.e(TAG, text)
+                                        ConsoleMessage.MessageLevel.WARNING -> Log.w(TAG, text)
+                                        else -> Log.i(TAG, text)
+                                    }
                                 }
                                 return true
                             }
@@ -1259,6 +1309,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         @JavascriptInterface
         fun heartbeat() {
             lastHeartbeatTime = System.currentTimeMillis()
+            logClusterPerfEvent("webview_heartbeat")
         }
 
         @JavascriptInterface
@@ -1268,6 +1319,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         @JavascriptInterface
         fun setCardId(cardId: Int) {
+            // NOTE (B3 deep-dive): this JS->native bridge currently updates currentCard and
+            // calls syncSecondaryDisplayApps(3) (a Shizuku `am stack list` poll) on every
+            // call, with no equality guard. Instrumented here to measure bridge call
+            // frequency vs. the ServiceManager CLUSTER_CARD_CHANGED path before deciding
+            // whether to add idempotency here too.
+            logClusterPerfEvent(
+                    "js_set_card_id",
+                    mapOf("from" to currentCard, "to" to cardId)
+            )
             currentCard = cardId
             Log.d(TAG, "Card ID updated to $cardId")
             syncSecondaryDisplayApps(3)
