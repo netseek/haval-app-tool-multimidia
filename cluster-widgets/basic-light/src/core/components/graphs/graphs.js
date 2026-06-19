@@ -714,6 +714,9 @@ export function createGraphScreen() {
 
         uiUpdateInterval = setInterval(() => {
             try {
+                const currentScreen = getState('screen');
+                if (currentScreen !== 'graph' && currentScreen !== 'graphs') return;
+
                 if (!chartInstance || !currentGraphId) return;
                 const graphInfo = graphList.find(g => g.id === currentGraphId);
                 if (!graphInfo) return;
@@ -886,12 +889,21 @@ export function createGraphScreen() {
         updateFocus(id);
     });
 
+    const unsubScreen = subscribe('screen', (screenName) => {
+        if (screenName === 'graph' || screenName === 'graphs') {
+            if (chartInstance && currentGraphId) {
+                chartInstance.update();
+            }
+        }
+    });
+
     const cleanup = () => {
         if (uiUpdateInterval) { clearInterval(uiUpdateInterval); uiUpdateInterval = null; }
         if (warpTunnel) { warpTunnel.stop(); }
         if (timerHideTimeoutId) { clearTimeout(timerHideTimeoutId); timerHideTimeoutId = null; }
         if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
         unsubCurrentGraph();
+        unsubScreen();
     };
 
     updateFocus(currentGraphId);

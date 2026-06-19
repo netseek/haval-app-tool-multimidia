@@ -668,6 +668,7 @@ public class ServiceManager {
             for (Runnable task : pendingTasks) backgroundHandler.post(task);
             pendingTasks.clear();
         }
+        backgroundHandler.post(this::runStartupAutomations);
         MainUiManager.getInstance().updateScreen();
         timeInitialized = SystemClock.uptimeMillis();
         Log.w(TAG, "Services initialized successfully");
@@ -1699,6 +1700,41 @@ public class ServiceManager {
             } else if (outsideTemp > maxTemp) {
                 Log.w(TAG, "Outside temp " + outsideTemp + " > max configured " + maxTemp + ", not opening curtain");
             }
+        }
+    }
+
+    private void runStartupAutomations() {
+        try {
+            Log.w(TAG, "Running startup automations...");
+            String readyState = getData(CarConstants.CAR_BASIC_DRIVING_READY_STATE.getValue());
+            if (readyState != null && !readyState.equals("-1") && !readyState.equals("0")) {
+                boolean disableBluetoothOnPowerOff = sharedPreferences.getBoolean(SharedPreferencesKeys.DISABLE_BLUETOOTH_ON_POWER_OFF.getKey(), false);
+                boolean bluetoothStateOnPowerOff = sharedPreferences.getBoolean(SharedPreferencesKeys.BLUETOOTH_STATE_ON_POWER_OFF.getKey(), false);
+                if (disableBluetoothOnPowerOff && bluetoothStateOnPowerOff && !currentBluetoothState()) {
+                    Log.w(TAG, "Startup: Re-enabling Bluetooth");
+                    enableBluetooth();
+                }
+                if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_MAX_AC_ON_UNLOCK.getKey(), false)) {
+                    if (!isMaxAcActive) {
+                        Log.w(TAG, "Startup: Enabling Max A/C on unlock");
+                        enableMaxAcOn();
+                    }
+                }
+                if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_OPEN_SUNROOF_CURTAIN_ON_START.getKey(), false)) {
+                    Log.w(TAG, "Startup: Auto-opening sunroof curtain");
+                    autoOpenSunroofCurtain();
+                }
+            }
+
+            String hvacPower = getData(CarConstants.CAR_HVAC_POWER_MODE.getValue());
+            if (hvacPower != null && hvacPower.equals("1")) {
+                if (sharedPreferences.getBoolean(SharedPreferencesKeys.ENABLE_SEAT_VENTILATION_ON_AC_ON.getKey(), false)) {
+                    Log.w(TAG, "Startup: Auto-enabling seat ventilation on AC on");
+                    updateData(CarConstants.CAR_COMFORT_SETTING_DRIVER_SEAT_VENTILATION_LEVEL.getValue(), "3");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error running startup automations", e);
         }
     }
 
