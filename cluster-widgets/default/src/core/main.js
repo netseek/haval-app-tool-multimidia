@@ -32,15 +32,12 @@ function isProjectionMapDisplayActive() {
         get('projectionPreparingD3') === true;
 }
 
-function isProjectionCardOverlayActive() {
+function isProjectionCardOverlayActive(cardId = get('cardId'), screen = get('screen')) {
     if (!isProjectionMapDisplayActive()) {
         return false;
     }
-    if (get('projectionCardOverlayAllowed') !== true) {
-        return false;
-    }
-    const screen = get('screen');
-    return isMainMenuSessionScreen(screen) || screen === 'aircon';
+    return (cardId == 1 && isMainMenuSessionScreen(screen)) ||
+        (cardId == 3 && screen === 'aircon');
 }
 
 function isMainMenuDetailScreen(screen) {
@@ -58,7 +55,7 @@ function isMainMenuSessionVisible(cardId, screen) {
     return get('mainMenuSessionActive') === true &&
         isMainMenuSessionScreen(screen) &&
         get('warningActive') !== true &&
-        cardId == 0;
+        cardId == 1;
 }
 
 function isWarningUiActive(cardId, screen) {
@@ -305,7 +302,6 @@ subscribe('clusterEnabled', render);
 subscribe('carPlayInDash', render);
 subscribe('projectionMirrorInDash', render);
 subscribe('projectionPreparingD3', render);
-subscribe('projectionCardOverlayAllowed', render);
 // cardId renders are handled after card-specific state sync below to avoid
 // rendering once with stale screen/session state and again after setState().
 render();
@@ -323,6 +319,8 @@ subscribe('cardId', (cardId) => {
     if (cardId == 1) {
         setState('mainMenuSessionActive', true);
     } else if (cardId == 3) {
+        setState('mainMenuSessionActive', false);
+    } else if (cardId == 0) {
         setState('mainMenuSessionActive', false);
     }
 
@@ -423,7 +421,6 @@ window.__havalProjectionDebug = function () {
         mainMenuSessionActive: get('mainMenuSessionActive'),
         display: get('display'),
         effectiveDisplay: getEffectiveDisplayMode(),
-        projectionCardOverlayAllowed: get('projectionCardOverlayAllowed'),
         projectionMapDisplayActive: isProjectionMapDisplayActive(),
         projectionCardOverlayActive: isProjectionCardOverlayActive(),
         appClass: app ? app.className : null,

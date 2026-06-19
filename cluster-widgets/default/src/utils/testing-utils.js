@@ -89,9 +89,6 @@ document.addEventListener('keydown', (e) => {
         const mapCardActive = currentState.projectionMirrorInDash === true || currentState.carPlayInDash === true;
         const cardMeaning = { 0: 'Hide Menu', 1: 'Main Menu', 3: mapCardActive ? 'Map Display' : 'AC Menu' };
         console.log(`[Card Simulation] Cycle Up -> Card ${targetCard} (${cardMeaning[targetCard]})`);
-        if (mapCardActive) {
-            setState('projectionCardOverlayAllowed', targetCard === 1 || targetCard === 3);
-        }
         setState('cardId', targetCard);
         return;
     }
@@ -103,9 +100,6 @@ document.addEventListener('keydown', (e) => {
         const mapCardActive = currentState.projectionMirrorInDash === true || currentState.carPlayInDash === true;
         const cardMeaning = { 0: 'Hide Menu', 1: 'Main Menu', 3: mapCardActive ? 'Map Display' : 'AC Menu' };
         console.log(`[Card Simulation] Cycle Down -> Card ${targetCard} (${cardMeaning[targetCard]})`);
-        if (mapCardActive) {
-            setState('projectionCardOverlayAllowed', targetCard === 1 || targetCard === 3);
-        }
         setState('cardId', targetCard);
         return;
     }

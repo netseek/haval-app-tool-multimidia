@@ -114,7 +114,6 @@ var stateManager = new StateManager({
     carPlayInDash: false,
     projectionMirrorInDash: false,
     projectionPreparingD3: false,
-    projectionCardOverlayAllowed: false,
     clusterEnabled: true,
     brightness: 100,
     fuelRange: 0,
