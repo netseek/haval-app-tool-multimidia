@@ -1,9 +1,11 @@
 # v2.6 — AA App owns its MediaSession (self-contained media-button fix)
 
-**Date**: 2026-06-22
-**Status**: AA wins the OS media button on-car (dumpsys confirmed); behavioral routing eyes-test pending
+**Date**: 2026-06-23
+**Status**: Working on-car — AA wins the OS media button when foreground (dumpsys) AND wheel
+NEXT/PREV/PLAY-PAUSE drive AA via LinkCommand (logs: `LinkCommand connected`, `onSkipToNext ->
+LinkCommand.next`, no `linkTransact failed`). Releases button to local apps on background (onPause).
 **Base**: v2.5 (`AndroidAutoApp_v25_signed.apk`, md5 `d8353f6f`) — display patches preserved
-**Signed APK**: `AndroidAutoApp_v26_mediasession_signed.apk` (md5 `3fa07dd2478ec82e2ff3ca41f71db5d6`)
+**Signed APK**: `AndroidAutoApp_v26_mediasession_signed.apk` (md5 `5a4e8f7daad359da3b624644e3f0995f`)
 **Bundled at**: `app/src/main/assets/aa_patches/AndroidAutoApp.apk`
 
 ## Problem
@@ -22,10 +24,15 @@ it) and is debug-signable without reboot issues. **Do not put the session in the
 ## The patch (apply on top of v2.5, App APK)
 1. **New class** `com/ts/androidauto/app/display/AppMediaButtonBridge.smali` (in this folder):
    framework `android.media.session.MediaSession` (flags HANDLES_MEDIA_BUTTONS|TRANSPORT, state
-   PLAYING, actions next/prev/play/pause/play-pause). `MediaSession.Callback` routes
-   `onSkipToNext/Previous/onPlay/onPause` → `AndroidAutoRemoteUiManager.getInstance().sendKeyEvent(
-   VehicleConst$AapHardkeyEvent.<MEDIA_*>.ordinal(), action)` — the same path `HardKeyModel` uses.
-   Static `install/claim/deactivate/release`.
+   PLAYING, actions next/prev/play/pause/play-pause). The class also `implements ServiceConnection`
+   and binds the projection Service (`com.ts.androidauto.projectionservice/.AndroidAutoService`,
+   action `com.ts.androidauto.action.AndroidAutoService`) to hold its `LinkCommand` binder.
+   `MediaSession.Callback` routes the buttons via a raw `transact` on that binder (interface token
+   `com.ts.androidauto.sdk.aidl.LinkCommand`): `onSkipToNext`→0x18, `onSkipToPrevious`→0x19,
+   `onPlay`→0x1c, `onPause`→0x1d — the same proven path Impulse used for PREVIOUS.
+   (NOTE: an earlier attempt routed via `AndroidAutoRemoteUiManager.sendKeyEvent` — callbacks fired
+   but AA did not skip; it is a no-op. Use the LinkCommand binder.)
+   Static `install/claim/deactivate/release/ensureBound`.
 2. **`AapActivity.smali` injections** (4 one-liners):
    - `onCreate` (after `init()`): `AppMediaButtonBridge.install(p0)`
    - `onResume` (before return): `AppMediaButtonBridge.claim()`  ← claims the button when AA comes
@@ -45,8 +52,10 @@ apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --out signe
 ```
 
 ## On-car result
-`dumpsys media_session` → `Media button session is com.ts.androidauto.app/HavalAaApp` (was
-`app.rvx.android.youtube`). Logs: `AAMediaBtn: App MediaSession installed / claimed`. No crash.
+While AA is foreground: `dumpsys media_session` → `Media button session is
+com.ts.androidauto.app/HavalAaApp` (was `app.rvx.android.youtube`); wheel keys log
+`App onSkipToNext -> LinkCommand.next` etc. and drive AA, with no `linkTransact failed`. On AA
+background (`onPause`) the session deactivates and local apps reclaim the button. No crash.
 
 ## Companion change (Phase 3)
 This supersedes the Impulse-side AA routing — the `handleWheelMediaKey` / `aaLinkPrevious` /
@@ -54,6 +63,6 @@ media-button-guard code was removed from `ServiceManager.java` in the same chang
 double-fire. AA media is now handled solely by this patched App.
 
 ## Pending
-- Eyes-test on car: NEXT/PREV/PLAY-PAUSE drive AA, YouTube stays put, no double-skip after the
-  Phase-3 Impulse is installed.
-- `onPlay`/`onPause` both map to AAP PLAY_PAUSE (toggle); refine if discrete play/pause needed.
+- Final eyes-test of no double-skip after the Phase-3 Impulse (without the old routing) is the
+  installed build — current car has it mounted; confirm across Display 0/1/3.
+- `onPlay`→0x1c / `onPause`→0x1d are discrete; verify the wheel PLAY-PAUSE toggle maps as expected.
