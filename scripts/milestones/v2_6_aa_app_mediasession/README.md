@@ -62,6 +62,20 @@ This supersedes the Impulse-side AA routing — the `handleWheelMediaKey` / `aaL
 media-button-guard code was removed from `ServiceManager.java` in the same change so the two don't
 double-fire. AA media is now handled solely by this patched App.
 
+## ⚠️ Known limitation — breaks the AA Google Assistant
+Confirmed on-car (clean-boot A/B, factory vs patched): mounting **any** apktool-rebuilt AA App APK
+(this v2.6, or even v2.5 display-only) **crashes `com.ts.androidauto.app/.AndroidAutoRemoteUiService`**
+— the remote-UI/hardkey/**voice** service. As a result the steering-wheel assistant long-press
+(`key.media.vr_long`) and "OK Google" do nothing. The factory App works; the breakage is collateral
+damage of the apktool rebuild (same class as the AA *Service* SIGSEGV — the rebuild disturbs a
+native-coupled vendor component). It is **not** a smali logic bug and not the MediaSession patch
+(it reproduces on v2.5). The `BeanVRAdapter getVrService null` log spam is unrelated noise (native
+voice apps `voiceclient`/`iflytek` aren't installed on this unit).
+
+**Trade-off:** patched App = display fixes + media controls, but no AA Assistant. Factory App =
+Assistant works, no patches. A real fix would need a surgical (non-full-rebuild) dex patch that
+leaves `AndroidAutoRemoteUiService` untouched, or upstreaming the changes another way.
+
 ## Pending
 - Final eyes-test of no double-skip after the Phase-3 Impulse (without the old routing) is the
   installed build — current car has it mounted; confirm across Display 0/1/3.
