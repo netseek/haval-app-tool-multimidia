@@ -35,9 +35,7 @@ class ThemeManager private constructor(val context: Context) {
     companion object {
         private const val TAG = "ThemeManager"
         /** Audited package catalog published with the stable v301 integration branch. */
-        // TEMP(v8-test): point catalog at netseek v8 so Minimalist OTA can be tested from this branch.
-        // REVERT to: https://github.com/bobaoapae/haval-app-tool-multimidia/tree/preview/cluster-widgets/Themes/v1.0
-        const val THEME_REPO_URL = "https://github.com/netseek/haval-app-tool-multimidia/tree/feature/new-screen-enhancements-v8/cluster-widgets/Themes/v1.0"
+        const val THEME_REPO_URL = "https://github.com/bobaoapae/haval-app-tool-multimidia/tree/preview/cluster-widgets/Themes/v1.0"
         /** Legacy Sport packages stay outside v1.0 and are accepted only through the pinned allowlist below. */
         const val TRUSTED_LEGACY_SPORT_REPO_URL = "https://github.com/bobaoapae/haval-app-tool-multimidia/tree/preview/cluster-widgets/Themes"
         const val CURRENT_CONTRACT_VERSION = "v1.0"
@@ -791,9 +789,7 @@ class ThemeManager private constructor(val context: Context) {
                     val fullPath = if (info.path.isNotEmpty()) "${info.path}/${metadata.folderName}" else metadata.folderName
                     "https://api.github.com/repos/${info.owner}/${info.repo}/contents/$fullPath?ref=${info.branch}"
                 } else {
-                    // TEMP(v8-test): keep fallback aligned with THEME_REPO_URL.
-                    // REVERT to bobaoapae/.../Themes/v1.0/...?ref=preview
-                    "https://api.github.com/repos/netseek/haval-app-tool-multimidia/contents/cluster-widgets/Themes/v1.0/${metadata.folderName}?ref=feature/new-screen-enhancements-v8"
+                    "https://api.github.com/repos/bobaoapae/haval-app-tool-multimidia/contents/cluster-widgets/Themes/v1.0/${metadata.folderName}?ref=preview"
                 }
 
                 Log.d(TAG, "Downloading theme from API: $apiUrl")
