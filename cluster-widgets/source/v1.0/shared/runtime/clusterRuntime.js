@@ -46,6 +46,8 @@ class MockCarState {
         this.cache.set('car.drive_setting.steering_wheel_assist_mode', '1');
         this.cache.set('car.ev_setting.energy_recovery_level', '1');
         this.cache.set('car.ev.setting.pedal_control_enable', '0');
+        this.cache.set('car.ev_setting.power_reserve_config', '1');
+        this.cache.set('car.ev_setting.charge_soc_target_config', '50');
 
         // Virtual App Telemetry Keys
         this.cache.set('app.display.1.active_app', 'com.ts.androidauto.app');
@@ -55,7 +57,7 @@ class MockCarState {
         this.cache.set('app.display.3.active_app_label', '');
         this.cache.set('app.launcher.apps', '[]');
         this.cache.set('app.navigation.directions', '{"street": "Av. Paulista", "distance": "200m", "turn": "TURN_RIGHT"}');
-
+        
         // Media Mocks
         this.cache.set('app.media.state', 'playing');
         this.cache.set('app.media.title', 'Smooth Criminal');
@@ -205,6 +207,8 @@ if (isBrowser) {
                 "car.drive_setting.steering_wheel_assist_mode",
                 "car.ev_setting.energy_recovery_level",
                 "car.ev.setting.pedal_control_enable",
+                "car.ev_setting.power_reserve_config",
+                "car.ev_setting.charge_soc_target_config",
                 "car.ev_info.energy_output_percentage",
                 "car.ev_info.cur_charge_current",
                 "car.ev_info.power_battery_voltage",
@@ -357,7 +361,7 @@ if (isBrowser) {
         window.__KEYBOARD_LISTENER_BOUND__ = true;
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey || e.altKey || e.metaKey) return;
-
+            
             let physicalKey = null;
             switch (e.key) {
                 case 'ArrowUp':
@@ -643,7 +647,7 @@ export function useValueCycle(key, cycleValues, options = {}) {
         elements.forEach(el => {
             // Write current state value as dynamic dataset
             el.dataset.currentValue = currentValue;
-
+            
             // If the element has labels, update label output
             const labelMapAttr = el.getAttribute('data-value-labels');
             if (labelMapAttr) {

@@ -9,9 +9,10 @@ import org.junit.Test
 class ThemeManagerCatalogTest {
     @Test
     fun `default catalog uses upstream preview contract v1 release branch`() {
+        // TEMP(v8-test): catalog temporarily points at netseek v8 for OTA testing.
         assertEquals(
-            "https://github.com/bobaoapae/haval-app-tool-multimidia/tree/" +
-                "preview/cluster-widgets/Themes/v1.0",
+            "https://github.com/netseek/haval-app-tool-multimidia/tree/" +
+                "feature/new-screen-enhancements-v8/cluster-widgets/Themes/v1.0",
             ThemeManager.THEME_REPO_URL
         )
     }

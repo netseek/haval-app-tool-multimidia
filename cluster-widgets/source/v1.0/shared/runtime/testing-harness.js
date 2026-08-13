@@ -334,44 +334,81 @@ export function initTestHarness(stateManager, menuItems) {
         }
     });
 
-    // 6. Regen Recovery and One-Pedal Navigation Audit
+    // 6. Regen Recovery and One-Pedal Navigation Audit (Minimalist Ajustes path)
     registerTest({
         name: "Regen Recovery and One-Pedal Navigation Audit",
         fn: async (h) => {
-            // Setup pre-condition: navigate to regen
-            h.setState('screen', 'regen');
+            h.setState('screen', 'main_menu');
+            h.setState('cardId', 1);
+            h.setState('focusedMenuItem', 'option_ajustes');
+            h.setState('menuFocusArea', 'sub');
+            h.setState('focusedAjustesItem', 'ajuste_regen');
             h.setState('regenMode', 'Normal');
             h.setState('onepedal', false);
+            h.setState('regenBeforeOnePedal', '0');
             await h.delay(50);
 
-            h.assertEqual(h.getState('regenMode'), 'Normal', "Initial recovery mode should be Normal");
-
-            // 1. Test UP cycle (Normal -> Alto)
-            await h.dispatchKeyEvent('UP');
-            h.assertEqual(h.getState('regenMode'), 'Alto', "Recovery level shifts UP to Alto");
-
-            // 2. Test DOWN cycle (Alto -> Normal)
-            await h.dispatchKeyEvent('DOWN');
-            h.assertEqual(h.getState('regenMode'), 'Normal', "Recovery level shifts DOWN to Normal");
-
-            // 3. Test DOWN cycle (Normal -> Baixo)
-            await h.dispatchKeyEvent('DOWN');
-            h.assertEqual(h.getState('regenMode'), 'Baixo', "Recovery level shifts DOWN to Baixo");
-
-            // 4. Test One-Pedal toggling requires a LONG press; short ENTER is a no-op
             h.assertEqual(h.getState('onepedal'), false, "One-Pedal starts disabled");
             await h.dispatchKeyEvent('ENTER');
+            // Short ENTER cycles regen when One-Pedal is off — should not enable One-Pedal.
             h.assertEqual(h.getState('onepedal'), false, "Short ENTER press does not activate One-Pedal");
 
             await h.dispatchKeyEvent('ENTER_LONG');
             h.assertEqual(h.getState('onepedal'), true, "Long ENTER press activates One-Pedal");
 
-            await h.dispatchKeyEvent('ENTER_LONG');
-            h.assertEqual(h.getState('onepedal'), false, "Long ENTER press deactivates One-Pedal");
+            await h.dispatchKeyEvent('ENTER');
+            h.assertEqual(h.getState('onepedal'), false, "Short ENTER while One-Pedal ON disables and restores regen");
+        }
+    });
 
-            // 5. Return to main menu
-            await h.dispatchKeyEvent('BACK');
-            h.assertEqual(h.getState('screen'), 'main_menu', "Returned safely to Main Menu screen via BACK key");
+    // 6b. HEV Inteligente / Prioritário long-press (Default option_2 or Minimalist ajuste_ev)
+    registerTest({
+        name: "HEV Reserve Long-Press Toggle Audit",
+        fn: async (h) => {
+            h.setState('screen', 'main_menu');
+            h.setState('cardId', 1);
+            h.setState('evMode', 'HEV');
+            h.setState('hevReserve', '1');
+            h.setState('hevSocTarget', 50);
+            await h.delay(50);
+
+            const prevGet = window.Android && window.Android.getCarData;
+            const prevUpdate = window.Android && window.Android.updateCarData;
+            const cache = {
+                'car.ev_setting.power_model_config': '0',
+                'car.ev_setting.power_reserve_config': '1'
+            };
+            window.Android = window.Android || {};
+            window.Android.getCarData = (k) => cache[k] ?? '';
+            window.Android.updateCarData = (k, v) => {
+                cache[k] = String(v);
+                if (k === 'car.ev_setting.power_reserve_config') {
+                    h.setState('hevReserve', String(v));
+                }
+            };
+
+            try {
+                const stateKeys = Object.keys(h.getState() || {});
+                const hasAjustes = stateKeys.includes('focusedAjustesItem') || stateKeys.includes('menuFocusArea');
+                if (hasAjustes) {
+                    h.setState('focusedMenuItem', 'option_ajustes');
+                    h.setState('menuFocusArea', 'sub');
+                    h.setState('focusedAjustesItem', 'ajuste_ev');
+                } else {
+                    h.setState('focusedMenuItem', 'option_2');
+                }
+                await h.delay(30);
+
+                await h.dispatchKeyEvent('ENTER_LONG');
+                h.assertEqual(String(h.getState('hevReserve')), '2', "Long ENTER on Modo EV (HEV) switches to Prioritário");
+                await h.dispatchKeyEvent('ENTER_LONG');
+                h.assertEqual(String(h.getState('hevReserve')), '1', "Long ENTER toggles back to Inteligente");
+            } finally {
+                if (prevGet) window.Android.getCarData = prevGet;
+                else delete window.Android.getCarData;
+                if (prevUpdate) window.Android.updateCarData = prevUpdate;
+                else delete window.Android.updateCarData;
+            }
         }
     });
 

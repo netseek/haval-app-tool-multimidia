@@ -39,6 +39,7 @@ import br.com.redesurftank.havalshisuku.models.screens.MainMenu
 import br.com.redesurftank.havalshisuku.models.screens.RegenScreen
 import br.com.redesurftank.havalshisuku.models.screens.Screen
 import br.com.redesurftank.havalshisuku.bridge.IBridgeContext
+import coil.imageLoader
 import java.io.File
 import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
@@ -194,6 +195,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private var cachedGlobalMaskKey: String? = null
     /** Last bitmap handed to [globalMaskView]; recycled when replaced. */
     private var displayedGlobalMaskBitmap: android.graphics.Bitmap? = null
+
+    /**
+     * Decoded IMAGE_URL wallpaper used as the mask source, plus the URL it belongs to and the
+     * URL currently being fetched. Owned by Coil's cache - referenced here, never recycled.
+     * See [getRemoteBackgroundBitmap].
+     */
+    private var remoteMaskBitmap: android.graphics.Bitmap? = null
+    private var remoteMaskUrl: String? = null
+    private var remoteMaskInFlightUrl: String? = null
 
     private val maskVisibilityOverrides = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
     private var themeBridge: br.com.redesurftank.havalshisuku.bridge.ThemeBridgeImpl? = null
@@ -1424,6 +1434,10 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         setDisplayedGlobalMask(null)
         invalidateGlobalMaskCache()
+        // Drop the reference only - the bitmap belongs to Coil's cache.
+        remoteMaskBitmap = null
+        remoteMaskUrl = null
+        remoteMaskInFlightUrl = null
 
         super.onStop()
     }
@@ -1554,24 +1568,18 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                         )
                     }
                     CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value -> {
+                        // Raw label only (HEV/EV/EVP). Themes compose Inteligente/Prioritário
+                        // from hevReserve + hevSocTarget — do not stuff compounds into evMode.
                         evaluateJsIfReady(
                                 webView,
-                                "control('evMode', '${evModeLabelWithSubmode(value)}')"
+                                "control('evMode', '${MainMenu.EvModeOptions.getLabel(value)}')"
                         )
                     }
-                    CarConstants.CAR_EV_SETTING_POWER_RESERVE_CONFIG.value,
+                    CarConstants.CAR_EV_SETTING_POWER_RESERVE_CONFIG.value -> {
+                        evaluateJsIfReady(webView, "control('hevReserve', '${value}')")
+                    }
                     CarConstants.CAR_EV_SETTING_CHARGE_SOC_TARGET_CONFIG.value -> {
-                        // Submodo HEV (Inteligente/Prioritário) OU o % alvo do Prioritário mudou — pela
-                        // multimídia OU pelo long-press do OK. Re-empurra a label do evMode com (I)/(P XX%)
-                        // NA HORA (real-time no cluster, sem sair/voltar o menu). As duas chaves já são
-                        // observadas (DEFAULT_KEYS).
-                        val evModeVal =
-                                ServiceManager.getInstance()
-                                        .getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value)
-                        evaluateJsIfReady(
-                                webView,
-                                "control('evMode', '${evModeLabelWithSubmode(evModeVal)}')"
-                        )
+                        evaluateJsIfReady(webView, "control('hevSocTarget', '${value}')")
                     }
                     CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value -> {
                         val label = MainMenu.DrivingModeOptions.getLabel(value)
@@ -2018,7 +2026,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         // Modes and Settings
         val evMode = sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value)
-        updates["evMode"] = evModeLabelWithSubmode(evMode)
+        updates["evMode"] = MainMenu.EvModeOptions.getLabel(evMode)
 
         val drivingMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value)
         val drivingModeLabel = MainMenu.DrivingModeOptions.getLabel(drivingMode)
@@ -2033,6 +2041,15 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
         val regenLevel = sm.getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value)
         updates["regenMode"] = RegenScreen.RegenOptions.getLabel(regenLevel)
+        val pedal = sm.getData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value)
+        updates["onepedal"] =
+                if (pedal != null && (pedal.trim() == "1" || pedal.equals("true", ignoreCase = true)))
+                        "1"
+                else "0"
+        updates["hevReserve"] =
+                sm.getData(CarConstants.CAR_EV_SETTING_POWER_RESERVE_CONFIG.value) ?: "1"
+        updates["hevSocTarget"] =
+                sm.getData(CarConstants.CAR_EV_SETTING_CHARGE_SOC_TARGET_CONFIG.value) ?: "50"
         // Power and Regen Graph
         val outputPower =
                 sm.getData(CarConstants.CAR_EV_INFO_ENERGY_OUTPUT_PERCENTAGE.value)?.toFloatOrNull()
@@ -2075,31 +2092,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         }
     }
 
-    /**
-     * Label do modo de força pro cluster. Em HEV, anexa o submodo: "(I)" Inteligente / "(P)" Prioritário
-     * (lê CAR_EV_SETTING_POWER_RESERVE_CONFIG: 2=Prioritário, senão Inteligente). EV/EVP ficam inalterados.
-     */
-    private fun evModeLabelWithSubmode(evModeValue: String?): String {
-        val base = MainMenu.EvModeOptions.getLabel(evModeValue)
-        if (evModeValue?.trim() == "0") { // HEV
-            val sm = ServiceManager.getInstance()
-            val reserve = sm.getData(CarConstants.CAR_EV_SETTING_POWER_RESERVE_CONFIG.value)
-            return if (reserve?.trim() == "2") {
-                // Prioritário: mostra o % alvo (mesma fonte da barra estendida).
-                val pct =
-                        sm.getData(CarConstants.CAR_EV_SETTING_CHARGE_SOC_TARGET_CONFIG.value)
-                                ?.trim()
-                                ?.toIntOrNull()
-                                ?.coerceIn(20, 80)
-                                ?: 50
-                "$base Prioridade $pct%"
-            } else {
-                "$base Inteligente"
-            }
-        }
-        return base
-    }
-
     private fun updateCardEntryValuesWebView(cardId: Int) {
         val sm = ServiceManager.getInstance()
         val updates = mutableMapOf<String, String>()
@@ -2122,7 +2114,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
             }
             ClusterCardIds.MAIN_MENU_CARD -> {
                 val evMode = sm.getData(CarConstants.CAR_EV_SETTING_POWER_MODEL_CONFIG.value)
-                updates["evMode"] = evModeLabelWithSubmode(evMode)
+                updates["evMode"] = MainMenu.EvModeOptions.getLabel(evMode)
 
                 val drivingMode = sm.getData(CarConstants.CAR_DRIVE_SETTING_DRIVE_MODE.value)
                 val drivingModeLabel = MainMenu.DrivingModeOptions.getLabel(drivingMode)
@@ -2138,6 +2130,18 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
 
                 val regenLevel = sm.getData(CarConstants.CAR_EV_SETTING_ENERGY_RECOVERY_LEVEL.value)
                 updates["regenMode"] = RegenScreen.RegenOptions.getLabel(regenLevel)
+
+                // One-Pedal + HEV reserve/SOC: raw values. Themes compose display labels
+                // (do NOT stuff "HEV Inteligente" into evMode — that breaks FRIENDLY_KEY translation).
+                val pedal = sm.getData(CarConstants.CAR_CONFIGURE_PEDAL_CONTROL_ENABLE.value)
+                updates["onepedal"] =
+                        if (pedal != null && (pedal.trim() == "1" || pedal.equals("true", ignoreCase = true)))
+                                "1"
+                        else "0"
+                updates["hevReserve"] =
+                        sm.getData(CarConstants.CAR_EV_SETTING_POWER_RESERVE_CONFIG.value) ?: "1"
+                updates["hevSocTarget"] =
+                        sm.getData(CarConstants.CAR_EV_SETTING_CHARGE_SOC_TARGET_CONFIG.value) ?: "50"
             }
         }
 
@@ -2324,17 +2328,6 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                             dismissedWarnings[key] != value
                 }
                 .sortedByDescending { (key, _) -> warningOnsetTimes[key] ?: 0L }
-    }
-
-    private fun hasCriticalTelemetryWarning(): Boolean {
-        for (key in monitoredWarningKeys) {
-            val value = currentWarningValue(key)
-            if (ClusterWarningPolicy.shouldTriggerCriticalWarningFlow(key, value)) {
-                Log.w(TAG, "Critical telemetry warning active: key=$key value=$value")
-                return true
-            }
-        }
-        return false
     }
 
     private fun getClusterFuelDisplayUnit(): String {
@@ -3777,11 +3770,132 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
                     val inputStream = outerContext.assets.open("backgrounds/$value")
                     return android.graphics.BitmapFactory.decodeStream(inputStream)
                 }
+                "IMAGE_URL" -> {
+                    return getRemoteBackgroundBitmap(value)
+                }
+                br.com.redesurftank.havalshisuku.models.SolidBackgroundSpec.TYPE -> {
+                    val spec =
+                            br.com.redesurftank.havalshisuku.models.SolidBackgroundSpec.parse(value)
+                    if (spec != null) return buildSolidBackgroundBitmap(spec)
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load custom background for mask fallback", e)
         }
         return null
+    }
+
+    /**
+     * Wallpaper for an IMAGE_URL background, for compositing into the display-3 masks.
+     *
+     * This runs on the UI thread inside [updateNativeMaskViews], so it must never block on the
+     * network. The first call for a new URL therefore returns null and schedules an async Coil
+     * load (the same loader D1 uses in InstrumentProjector.loadRemoteImage, so the bitmap is
+     * usually already in Coil's cache); when it lands we drop the composed mask and run the
+     * mask pass again, which then finds the bitmap here synchronously.
+     *
+     * Without this branch the masks silently fell back to `null` for every web/URL wallpaper and
+     * kept painting whatever the previous background was.
+     */
+    private fun getRemoteBackgroundBitmap(url: String): android.graphics.Bitmap? {
+        if (url.isBlank()) return null
+
+        val cached = remoteMaskBitmap
+        if (cached != null && !cached.isRecycled && remoteMaskUrl == url) return cached
+
+        // A fetch for this URL is already running - don't pile up duplicate requests.
+        if (remoteMaskInFlightUrl == url) return null
+        remoteMaskInFlightUrl = url
+
+        try {
+            val request =
+                    coil.request.ImageRequest.Builder(outerContext)
+                            .data(url)
+                            // Hardware bitmaps cannot be read back when compositing the mask.
+                            .allowHardware(false)
+                            .target(
+                                    onSuccess = { drawable ->
+                                        remoteMaskInFlightUrl = null
+                                        val bmp =
+                                                (drawable as?
+                                                                android.graphics.drawable.BitmapDrawable)
+                                                        ?.bitmap
+                                        if (bmp != null && !bmp.isRecycled) {
+                                            // Coil owns this bitmap - keep the reference, never recycle it.
+                                            remoteMaskBitmap = bmp
+                                            remoteMaskUrl = url
+                                            ensureUi {
+                                                invalidateGlobalMaskCache()
+                                                updateNativeMaskViews()
+                                            }
+                                        } else {
+                                            Log.w(TAG, "Remote background for mask was not a bitmap: $url")
+                                        }
+                                    },
+                                    onError = {
+                                        remoteMaskInFlightUrl = null
+                                        Log.w(TAG, "Failed to load remote background for mask: $url")
+                                    }
+                            )
+                            .build()
+            outerContext.imageLoader.enqueue(request)
+        } catch (e: Exception) {
+            remoteMaskInFlightUrl = null
+            Log.w(TAG, "Could not enqueue remote background for mask: $url", e)
+        }
+        return null
+    }
+
+    /**
+     * Renders a COLOR background at mask resolution. Mirrors the vignette geometry of
+     * InstrumentProjector.buildSolidBackground (the D1 source of truth) so the inset matches the
+     * wallpaper behind it; drawn at 1920x720 directly instead of being scaled up from 640x240.
+     */
+    private fun buildSolidBackgroundBitmap(
+            spec: br.com.redesurftank.havalshisuku.models.SolidBackgroundSpec
+    ): android.graphics.Bitmap {
+        val width = 1920
+        val height = 720
+        val bitmap =
+                android.graphics.Bitmap.createBitmap(
+                        width,
+                        height,
+                        android.graphics.Bitmap.Config.ARGB_8888
+                )
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.drawColor(spec.color)
+
+        if (spec.vignette > 0) {
+            val alpha = (spec.vignette * 255 / 100).coerceIn(0, 255)
+            val paint =
+                    android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        shader =
+                                android.graphics.RadialGradient(
+                                        width / 2f,
+                                        height / 2f,
+                                        width * 0.62f,
+                                        intArrayOf(
+                                                android.graphics.Color.TRANSPARENT,
+                                                android.graphics.Color.TRANSPARENT,
+                                                android.graphics.Color.argb(alpha, 0, 0, 0)
+                                        ),
+                                        floatArrayOf(0f, 0.45f, 1f),
+                                        android.graphics.Shader.TileMode.CLAMP
+                                )
+                    }
+            // Flatten the circle vertically to follow the panoramic cluster shape.
+            canvas.save()
+            canvas.scale(1f, height.toFloat() / width, width / 2f, height / 2f)
+            canvas.drawRect(
+                    0f,
+                    height / 2f - width,
+                    width.toFloat(),
+                    height / 2f + width,
+                    paint
+            )
+            canvas.restore()
+        }
+        return bitmap
     }
 
     private fun getCoverScaledBitmap(bitmap: android.graphics.Bitmap, targetW: Int, targetH: Int): android.graphics.Bitmap {
