@@ -149,7 +149,29 @@ fun InstallAppsTab() {
             isCarPlayPatchInstalled = states[2]
             isCarPlayMounted = states[3]
             val homeNow = runCatching { pm.getPackageInfo(IMPULSE_HOME_PACKAGE, 0) }.isSuccess
-            if (homeNow && !homeWasInstalled) showHomeSetup = true
+            if (homeNow && !homeWasInstalled) {
+                val hasShizuku = withContext(Dispatchers.IO) {
+                    ShizukuUtils.isShizukuAvailable() && runCatching {
+                        Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+                    }.getOrDefault(false)
+                }
+                if (hasShizuku) {
+                    withContext(Dispatchers.IO) {
+                        listOf(
+                            "android.permission.WRITE_EXTERNAL_STORAGE",
+                            "android.permission.READ_EXTERNAL_STORAGE",
+                            "android.permission.ACCESS_FINE_LOCATION",
+                            "android.permission.ACCESS_COARSE_LOCATION",
+                            "android.permission.RECORD_AUDIO"
+                        ).forEach { perm ->
+                            runCatching {
+                                ShizukuUtils.runCommandAndGetOutput(arrayOf("pm", "grant", IMPULSE_HOME_PACKAGE, perm))
+                            }
+                        }
+                    }
+                }
+                showHomeSetup = true
+            }
             homeWasInstalled = homeNow
             refreshTrigger++
             delay(4000)
@@ -294,7 +316,22 @@ fun InstallAppsTab() {
                     homeVerifyError = "Download recusado: " + result.reason
                     return@launch
                 }
+                val installedViaShizuku = withContext(Dispatchers.IO) {
+                    val hasShizuku = ShizukuUtils.isShizukuAvailable() && runCatching {
+                        Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+                    }.getOrDefault(false)
+                    if (hasShizuku) {
+                        val out = ShizukuUtils.runCommandAndGetOutput(
+                            arrayOf("pm", "install", "-r", "-g", "-i", "com.autolink.installer", file.absolutePath)
+                        )
+                        out.contains("Success", ignoreCase = true)
+                    } else false
+                }
                 withContext(Dispatchers.Main) {
+                    if (installedViaShizuku) {
+                        refreshTrigger++
+                        return@withContext
+                    }
                     if (!pm.canRequestPackageInstalls()) {
                         showPermissionDialog = true
                         return@withContext
@@ -998,12 +1035,13 @@ fun InstallAppsTab() {
     if (showHomeSignatureDialog) {
         AlertDialog(
                 onDismissRequest = { showHomeSignatureDialog = false },
-                title = { Text("Assinatura invalida") },
+                title = { Text("Assinatura diferente") },
                 text = {
                     Text(
-                            "Identificamos uma assinatura invalida no app ja instalado. " +
-                                    "Remova o app e entao instale a partir do nosso link para " +
-                                    "que venha de uma fonte confiavel."
+                            "Identificamos uma assinatura diferente no app já instalado. " +
+                                    "Remova o app e instale a versão assinada para prosseguir. " +
+                                    "Seus dados e viagens salvos em /sdcard/HavalH6Viewer serão mantidos " +
+                                    "e restaurados automaticamente."
                     )
                 },
                 confirmButton = {
