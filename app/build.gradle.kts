@@ -41,10 +41,25 @@ fun buildConfigString(value: String): String =
 android {
     namespace = "br.com.redesurftank.havalshisuku"
     compileSdk = 36
+    ndkVersion = "27.1.12297006"
+
+    externalNativeBuild {
+        cmake {
+            path = file("../scripts/carplay-native-analysis/native/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 
     defaultConfig {
         applicationId = "br.com.redesurftank.havalshisuku"
         minSdk = 28
+        externalNativeBuild {
+            cmake {
+                abiFilters += listOf("arm64-v8a")
+                targets += listOf("carplay_video_bridge")
+                arguments += listOf("-DANDROID_STL=c++_static")
+            }
+        }
         //noinspection ExpiredTargetSdkVersion
         targetSdk = 28
         versionCode = appVersionCode.get()
@@ -139,6 +154,10 @@ android {
         buildConfig = true
         compose = true
     }
+
+    packaging {
+        jniLibs.excludes += "**/libcarplay_video_bridge.so"
+    }
 }
 
 kotlin {
@@ -178,4 +197,38 @@ dependencies {
     testImplementation("org.json:json:20231013")
     debugImplementation(libs.ui.tooling)
     debugImplementation(libs.ui.test.manifest)
+}
+
+val buildCarPlayColdGatePatch by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Builds the staged, default-off CarPlay cold-start gate service patch"
+    val baseline = layout.projectDirectory.file("src/main/assets/carplay_patches/TsCarPlayService.apk")
+    val patchScript = rootProject.layout.projectDirectory.file("scripts/carplay-patches/patch_cold_start_gate.py")
+    val buildScript = rootProject.layout.projectDirectory.file("scripts/carplay-patches/build_cold_gate_service_patch.sh")
+    val output = layout.buildDirectory.file("outputs/carplay-patches/TsCarPlayService-cold-gate.apk")
+    val work = layout.buildDirectory.dir("intermediates/carplay-cold-gate")
+
+    inputs.files(baseline, patchScript, buildScript)
+    outputs.file(output)
+    dependsOn("testCarPlayColdTools")
+    commandLine(
+        "bash",
+        buildScript.asFile.absolutePath,
+        baseline.asFile.absolutePath,
+        output.get().asFile.absolutePath,
+        work.get().asFile.absolutePath
+    )
+}
+
+val testCarPlayColdTools by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs deterministic cold-gate and launcher tooling tests"
+    workingDir(rootProject.layout.projectDirectory)
+    commandLine(
+        "python3",
+        "-m",
+        "unittest",
+        "scripts/carplay-patches/test_patch_cold_start_gate.py",
+        "scripts/carplay-native-analysis/test_make_cold_launcher.py"
+    )
 }

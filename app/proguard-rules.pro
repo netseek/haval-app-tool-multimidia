@@ -24,3 +24,7 @@
     public static *** isLoggable(...);
     public static *** getStackTraceString(...);
 }
+-keep class br.com.redesurftank.havalshisuku.experimental.CarPlaySurfaceEndpoint { *; }
+-keep class br.com.redesurftank.havalshisuku.services.ICarPlayClusterBridge { *; }
+-keep class br.com.redesurftank.havalshisuku.services.ICarPlayClusterBridge$Stub { *; }
+-keep class br.com.redesurftank.havalshisuku.services.ICarPlayClusterBridge$Stub$Proxy { *; }

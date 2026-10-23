@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 EXPECTED_ASSET_MD5 = {
     "app/src/main/assets/carplay_patches/TsCarPlayApp.apk": "9d48c33f49dbeeb020c2fdc7e16bbc53",
-    "app/src/main/assets/carplay_patches/TsCarPlayService.apk": "f0269fc640778825843762dcf55a8b83",
+    "app/src/main/assets/carplay_patches/TsCarPlayService.apk": "b61f0e4d63535a2ef447be559211697b",
 }
 
 REQUIRED_TOKENS = {

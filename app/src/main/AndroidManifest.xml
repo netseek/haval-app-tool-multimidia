@@ -124,6 +124,14 @@
                 <action android:name="br.com.redesurftank.havalshisuku.services.FridaTakeActionService" />
             </intent-filter>
         </service>
+        <service
+            android:name=".services.CarPlayClusterBridgeService"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="br.com.redesurftank.havalshisuku.CARPLAY_CLUSTER_BRIDGE" />
+            </intent-filter>
+        </service>
 
         <service
             android:name=".services.BottomBarService"
