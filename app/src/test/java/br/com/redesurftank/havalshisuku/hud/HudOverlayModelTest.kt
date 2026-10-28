@@ -96,6 +96,10 @@ class HudOverlayModelTest {
         assertTrue(m.HERO_TOP >= m.TBT_TOP)
         assertTrue(m.HERO_TOP + m.HERO_GLYPH + m.HERO_TEXT_GAP <= m.TBT_BOTTOM)
         assertTrue(m.HERO_GLYPH > m.COMPACT_GLYPH)
+        // Text-only guidance must retain the road and distance inside the same free cells.
+        assertTrue(m.TEXT_STREET_BASELINE - m.TEXT_STREET_SIZE >= m.TBT_TOP)
+        assertTrue(m.TEXT_DISTANCE_BASELINE - m.HERO_VALUE_SIZE > m.TEXT_STREET_BASELINE)
+        assertTrue(m.TEXT_DISTANCE_BASELINE <= m.TBT_BOTTOM)
         // ETA between the turn-by-turn and the bars (pulled up into the area's empty bottom: its
         // cap height clears the lane row; see `nav text stays between...`); bars in the band.
         assertTrue(m.TRIP_BASELINE - m.TRIP_SIZE * 0.75f > m.LANES_TOP + m.LANE_ROW_HEIGHT)

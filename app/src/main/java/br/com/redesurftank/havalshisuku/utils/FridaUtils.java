@@ -89,11 +89,8 @@ public class FridaUtils {
             shizukuService.newProcess(new String[]{"setenforce", "0"}, null, null).waitFor();
             shizukuService.newProcess(new String[]{"chmod", "755", FRIDA_SERVER_PATH}, null, null).waitFor();
             shizukuService.newProcess(new String[]{"chmod", "755", FRIDA_INJECTOR_PATH}, null, null).waitFor();
-            try {
-                shizukuService.newProcess(new String[]{"pkill", "-f", "fridainjector"}, null, null).waitFor();
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to pkill existing injectors: " + e.getMessage());
-            }
+            // Other injectors can own process-pinned native trampolines. Starting
+            // the server must preserve those clients for their target's lifetime.
             String isRunning = ShizukuUtils.runCommandAndGetOutput(new String[]{"pidof", "fridaserver"}).trim();
             if (!isRunning.isEmpty()) {
                 Log.w(TAG, "Frida server is already running with pid: " + isRunning);

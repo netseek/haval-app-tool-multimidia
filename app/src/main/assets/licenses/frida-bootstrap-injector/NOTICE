@@ -1,0 +1,14 @@
+The bootstrap-only cpbridge-inject asset derives from Frida inject 17.5.2.
+Upstream source: https://github.com/frida/frida-core/tree/bcd4a3d586f5a95cad943ddb176be23aadf1dfd7
+License and upstream exception: see COPYING in this directory.
+
+Modification: replace the AArch64 CLI initializer's policy-patch tail branch
+with a return after its existing runtime initialization and frame restoration.
+The original Frida resource is retained unchanged for existing application features.
+The separate bootstrap asset requires an already-permissive kernel and verifies
+the existing policy and system process identity before use; it never changes mode.
+
+Reproducible modification source and exact input/output digests are provided in
+the release's frida-bootstrap-source.tar.gz. The source files are
+scripts/carplay-native-analysis/patch_bootstrap_injector.py and
+scripts/carplay-native-analysis/testdata/frida-injector-17.5.2-permissive.json.

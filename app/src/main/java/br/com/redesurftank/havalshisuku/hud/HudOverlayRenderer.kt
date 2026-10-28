@@ -295,6 +295,7 @@ class HudOverlayRenderer {
         applyColors(f.colors)
         f.tbt?.let { tbt ->
             when (tbt.style) {
+                M.TbtStyle.TEXT -> if (f.radar == null && !tbt.turnHidden) drawTextGuidance(canvas, tbt)
                 // Further than the owner's "show from": only the trip line (drawNavText).
                 M.TbtStyle.HERO -> if (f.radar == null && !tbt.turnHidden) drawHero(canvas, tbt)
                 M.TbtStyle.COMPACT -> if (f.radar == null && !tbt.turnHidden) drawRow(canvas, tbt, M.COMPACT_TOP).also { drawLanes(canvas, tbt.lanes, M.LANES_TOP) }
@@ -941,6 +942,32 @@ class HudOverlayRenderer {
     }
 
     // ---- turn-by-turn ----
+
+    /** Road and formatted distance only; no maneuver glyph or inferred AR geometry. */
+    private fun drawTextGuidance(canvas: Canvas, tbt: M.Tbt) {
+        canvas.save()
+        canvas.clipRect(M.BOX_LEFT, M.TBT_TOP, M.BOX_RIGHT, M.TBT_BOTTOM)
+        streetPaint.textSize = M.TEXT_STREET_SIZE
+        val road = android.text.TextUtils.ellipsize(
+            tbt.street, streetPaint, M.BOX_RIGHT - M.BOX_LEFT,
+            android.text.TextUtils.TruncateAt.END
+        ).toString()
+        if (road.isNotEmpty()) {
+            val width = streetPaint.measureText(road)
+            canvas.drawText(road, M.columnLeft(width, M.BOX_RIGHT), M.TEXT_STREET_BASELINE, streetPaint)
+        }
+        setTextSizes(M.HERO_VALUE_SIZE, M.HERO_UNIT_SIZE)
+        val available = M.BOX_RIGHT - M.BOX_LEFT
+        val wanted = distanceWidth(tbt)
+        if (wanted > available) {
+            val gap = if (tbt.distanceUnit.isEmpty()) 0f else M.UNIT_GAP
+            val scale = (available - gap) / (wanted - gap)
+            setTextSizes(M.HERO_VALUE_SIZE * scale, M.HERO_UNIT_SIZE * scale)
+        }
+        val width = distanceWidth(tbt)
+        drawDistance(canvas, tbt, M.BOX_CENTER_X - width / 2, M.TEXT_DISTANCE_BASELINE)
+        canvas.restore()
+    }
 
     /** No lanes: big arrow centred, small distance centred under it. */
     private fun drawHero(canvas: Canvas, tbt: M.Tbt) {

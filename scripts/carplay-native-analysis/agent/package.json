@@ -1,0 +1,14 @@
+{
+  "name": "impulse-carplay-clean-map-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Build-time Java bridge dependency for the explicit CarPlay experiment",
+  "dependencies": {
+    "frida-java-bridge": "7.0.13"
+  },
+  "devDependencies": {
+    "@types/frida-gum": "18.7.2",
+    "frida-compile": "18.0.0"
+  }
+}
