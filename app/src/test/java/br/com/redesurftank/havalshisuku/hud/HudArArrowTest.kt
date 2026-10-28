@@ -273,10 +273,35 @@ class HudArArrowTest {
         val discreet = HudOverlayModel.Preset.DISCREET.config!!
         assertEquals(HudOverlayModel.Gauges.NONE, discreet.gauges)
         assertEquals(HudOverlayModel.ColorMode.BLUE, discreet.colors.mode)
-        assertTrue(!discreet.trip && discreet.showTurnFromM == 300)
+        // Distance and time come with navigation (owner, 2026-10-28), Discreet too.
+        assertTrue(discreet.trip && discreet.showTurnFromM == 300)
         assertTrue(!HudOverlayModel.Preset.ORIGINAL.config!!.active)
         assertNull(HudOverlayModel.Preset.CUSTOM.config)
         assertEquals(HudOverlayModel.Preset.MAP, HudOverlayModel.Preset.fromKey("map"))
+    }
+
+    @Test
+    fun `map tilt reshapes the far road, zoom scales the whole map`() {
+        val top = HudArArrow.MAP_HORIZON_TOP_Y
+        val plain = HudArArrow.MapLens(top)
+        // 1, 1 is the original view.
+        assertEquals(HudArArrow.mapProject(5f, 200f, top)!!.first, HudArArrow.mapProject(5f, 200f, plain)!!.first, 0.001f)
+        // At the car nothing moves.
+        val tilted = HudArArrow.MapLens(top, tilt = 4f)
+        assertEquals(HudArArrow.MAP_NEAR_Y, HudArArrow.mapProject(0f, 0f, tilted)!!.second, 0.01f)
+        assertEquals(HudArArrow.mapPxPerM(0f, plain), HudArArrow.mapPxPerM(0f, tilted), 0.01f)
+        // Tilt up: 200 m ahead sits lower (more of the height for the road ahead); down: higher.
+        val y = HudArArrow.mapProject(0f, 200f, plain)!!.second
+        assertTrue(HudArArrow.mapProject(0f, 200f, HudArArrow.MapLens(top, tilt = 4f))!!.second > y + 10f)
+        assertTrue(HudArArrow.mapProject(0f, 200f, HudArArrow.MapLens(top, tilt = 0.4f))!!.second < y - 5f)
+        // Zoomed out: the map further away, 200 m ahead where 120 m was, the street narrower;
+        // the car still at the bottom; the far end shows further on.
+        val far = HudArArrow.MapLens(top, zoom = 0.6f)
+        assertEquals(HudArArrow.mapProject(0f, 120f, plain)!!.second, HudArArrow.mapProject(0f, 200f, far)!!.second, 0.01f)
+        assertEquals(HudArArrow.mapPxPerM(0f, plain) * 0.6f, HudArArrow.mapPxPerM(0f, far), 0.01f)
+        assertEquals(HudArArrow.MAP_NEAR_Y, HudArArrow.mapProject(0f, 0f, far)!!.second, 0.01f)
+        assertNull(HudArArrow.mapProject(0f, HudArArrow.MAP_FAR_M + 1f, plain))
+        assertTrue(HudArArrow.mapProject(0f, HudArArrow.MAP_FAR_M + 1f, far) != null)
     }
 
     @Test
@@ -435,13 +460,14 @@ class HudArArrowTest {
         // Straight, then bending right: the arrow leans right on top of the arc.
         val straight = floatArrayOf(0f, 0f, 0f, 200f)
         assertEquals(0f, HudOverlayModel.roadBendAhead(straight)!!, 0.5f)
-        // A 45 deg bend turns it the most (capped); a soft 15 deg one shows a quarter of the old
-        // 2x (owner, 2026-10-27: only the trend), 7.5.
-        val bend = floatArrayOf(0f, 0f, 0f, 30f, 30f, 60f, 60f, 90f, 90f, 120f)
+        // A 90 deg corner turns it the most (capped); a soft 15 deg bend shows a quarter of the
+        // old 2x (owner, 2026-10-27: only the trend), 7.5.
+        val bend = floatArrayOf(0f, 0f, 0f, 30f, 60f, 30f, 120f, 30f)
         assertEquals(HudOverlayModel.CHEVRON_ROAD_MAX_DEG, HudOverlayModel.roadBendAhead(bend)!!, 1f)
-        assertEquals(-HudOverlayModel.CHEVRON_ROAD_MAX_DEG, HudOverlayModel.roadBendAhead(floatArrayOf(0f, 0f, 0f, 30f, -30f, 60f, -60f, 90f, -90f, 120f))!!, 1f)
-        val dx = (kotlin.math.tan(Math.toRadians(15.0)) * 30).toFloat()
-        val soft = floatArrayOf(0f, 0f, 0f, 30f, dx, 60f, 2 * dx, 90f, 3 * dx, 120f)
+        assertEquals(-HudOverlayModel.CHEVRON_ROAD_MAX_DEG, HudOverlayModel.roadBendAhead(floatArrayOf(0f, 0f, 0f, 30f, -60f, 30f, -120f, 30f))!!, 1f)
+        val dx = (kotlin.math.sin(Math.toRadians(15.0)) * 100).toFloat()
+        val dy = (kotlin.math.cos(Math.toRadians(15.0)) * 100).toFloat()
+        val soft = floatArrayOf(0f, 0f, 0f, 20f, dx, 20f + dy)
         assertEquals(15f * HudOverlayModel.CHEVRON_ROAD_GAIN, HudOverlayModel.roadBendAhead(soft)!!, 1f)
         assertNull(HudOverlayModel.roadBendAhead(floatArrayOf(0f, 0f, 0f, 40f)))
         // Never more than the cap.

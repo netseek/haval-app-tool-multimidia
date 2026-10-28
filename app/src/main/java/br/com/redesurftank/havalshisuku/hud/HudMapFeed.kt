@@ -48,8 +48,16 @@ object HudMapFeed {
     /** Redraw period while moving (position extrapolated), and while standing. */
     private const val FRAME_MS = 200L
     private const val IDLE_MS = 5_000L
-    /** Don't run on past this since the last fix (lost GPS). */
+    /** Don't run on past this since the last fix (lost GPS)... */
     private const val EXTRAPOLATE_MAX_MS = 2_000L
+    /**
+     * ...unless the car says it is moving: then the map runs on at the car's own speed along the
+     * street for up to this long (owner, 2026-10-27: in the São Francisco tunnel GPS went stale
+     * and jumpy and the map froze at the entry, showing the bend after the exit as if it were
+     * there). Fixes worse than [DR_MAX_ACCURACY_M] are skipped meanwhile.
+     */
+    private const val DR_MAX_MS = 60_000L
+    private const val DR_MAX_ACCURACY_M = 25f
     /** Snap the heading to the street when it is this close to GPS's, and the street this near. */
     private const val SNAP_DEG = 20.0
     private const val SNAP_M = 15.0
@@ -107,6 +115,27 @@ object HudMapFeed {
         private set
     @Volatile var gpsBearing = Double.NaN
         private set
+    /** The last fix's accuracy (m, NaN unknown), and whether the map is running on without GPS. */
+    @Volatile var lastAccuracyM = Float.NaN
+        private set
+    @Volatile var deadReckoning = false
+        private set
+
+    /** The car's own speed (km/h, from the car): for running on without GPS. Any thread. */
+    fun setCarSpeed(kmh: Double) {
+        carSpeedMps = (kmh / 3.6).toFloat()
+    }
+    @Volatile private var carSpeedMps = 0f
+    // Dead reckoning: where the map last put the car, its heading, and when (feed thread).
+    private var drLat = Double.NaN
+    private var drLon = Double.NaN
+    private var drHeading = 0.0
+    private var drAtMs = 0L
+
+    private fun carMoving() = carSpeedMps >= BEARING_MIN_MPS
+    /** GPS is stale but the car moves and the last good pose is recent enough to run on from. */
+    private fun reckoning(now: Long) = demo == null && carMoving() && !drLat.isNaN() &&
+        now - fixAtMs > EXTRAPOLATE_MAX_MS && now - fixAtMs <= DR_MAX_MS
     fun gpsSpeedMps(): Float = speedMps
     fun fixAgeMs(): Long = if (fixAtMs == 0L) -1L else SystemClock.elapsedRealtime() - fixAtMs
 
@@ -244,9 +273,21 @@ object HudMapFeed {
         }
     }
 
-    private fun moving() = demo != null || (speedMps >= BEARING_MIN_MPS && SystemClock.elapsedRealtime() - fixAtMs < EXTRAPOLATE_MAX_MS)
+    private fun moving(): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        return demo != null || (speedMps >= BEARING_MIN_MPS && now - fixAtMs < EXTRAPOLATE_MAX_MS) || reckoning(now)
+    }
 
     private fun onLocation(location: Location) {
+        lastAccuracyM = if (location.hasAccuracy()) location.accuracy else Float.NaN
+        // A poor fix while the car moves and a good pose is recent: keep running on instead.
+        val now = SystemClock.elapsedRealtime()
+        if (location.hasAccuracy() && location.accuracy > DR_MAX_ACCURACY_M && carMoving() &&
+            !drLat.isNaN() && now - fixAtMs <= DR_MAX_MS
+        ) {
+            rebuild()
+            return
+        }
         lat = location.latitude
         lon = location.longitude
         speedMps = if (location.hasSpeed()) location.speed else 0f
@@ -267,12 +308,16 @@ object HudMapFeed {
     private fun rebuild() {
         if (lat.isNaN()) return
         val now = SystemClock.elapsedRealtime()
+        // GPS stale and a recent pose: run on from it at the car's speed (held there when the car
+        // stops, not back at the last fix before the tunnel).
+        val dr = demo == null && !drLat.isNaN() && now - fixAtMs > EXTRAPOLATE_MAX_MS && now - fixAtMs <= DR_MAX_MS
+        deadReckoning = dr
         if (!prefetchedThisStop && stillSinceMs != 0L && now - stillSinceMs >= PREFETCH_AFTER_STILL_MS) {
             prefetchedThisStop = true
             OsmRoadStore.prefetch(lat, lon, PREFETCH_RADIUS_M)
         }
         if (moving() && demo == null) prefetchAhead()
-        val near = OsmRoadStore.roadsNear(lat, lon, LOAD_RADIUS_M) { handler?.post { rebuild() } }
+        val near = OsmRoadStore.roadsNear(if (dr) drLat else lat, if (dr) drLon else lon, LOAD_RADIUS_M) { handler?.post { rebuild() } }
         val share = if (near.total > 0) near.loaded.toFloat() / near.total else 0f
         val progressChanged = share != progress
         progress = share
@@ -298,7 +343,17 @@ object HudMapFeed {
         }
         var pLat = lat
         var pLon = lon
-        if (moving()) {
+        if (dr) {
+            // No GPS (tunnel): on from the last pose at the car's speed, turning with the street.
+            val d = (if (carMoving()) carSpeedMps else 0f) * (now - drAtMs) / 1000.0
+            val rad = Math.toRadians(drHeading)
+            pLat = drLat + d * cos(rad) / 110_540.0
+            pLon = drLon + d * sin(rad) / (111_320.0 * cos(Math.toRadians(drLat)))
+            heading = drHeading
+            OsmRoads.roadBearing(near.roads, pLat, pLon, heading, SNAP_M)?.let { street ->
+                if (abs(((street - heading) % 360 + 540) % 360 - 180) <= SNAP_DEG) heading = street
+            }
+        } else if (moving()) {
             val d = speedMps * (now - fixAtMs).coerceAtMost(EXTRAPOLATE_MAX_MS) / 1000.0
             val rad = Math.toRadians(heading)
             pLat += d * cos(rad) / 110_540.0
@@ -311,6 +366,12 @@ object HudMapFeed {
         demo?.let { run ->
             val (dLat, dLon, dHeading) = demoPose(run, now)
             pLat = dLat; pLon = dLon; heading = dHeading
+        }
+        if (demo == null) {
+            drLat = pLat
+            drLon = pLon
+            drHeading = heading
+            drAtMs = now
         }
         poseLat = pLat
         poseLon = pLon

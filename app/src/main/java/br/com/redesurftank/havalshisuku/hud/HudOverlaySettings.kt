@@ -43,7 +43,8 @@ object HudOverlaySettings {
             layout = layout,
             navigation = prefs.getBoolean(SharedPreferencesKeys.HUD_NAV_ENABLED.key, base.navigation),
             smallArrowWhenFar = prefs.getBoolean(SharedPreferencesKeys.HUD_NAV_SMALL_WHEN_FAR.key, base.smallArrowWhenFar),
-            trip = prefs.getBoolean(SharedPreferencesKeys.HUD_NAV_TRIP.key, base.trip),
+            // Distance and time come with navigation (owner, 2026-10-28: no switch any more).
+            trip = true,
             powerBar = prefs.getBoolean(SharedPreferencesKeys.HUD_POWER_BAR.key, base.powerBar),
             rpmBar = prefs.getBoolean(SharedPreferencesKeys.HUD_RPM_BAR.key, base.rpmBar),
             gauges = HudOverlayModel.Gauges.fromKey(prefs.getString(SharedPreferencesKeys.HUD_GAUGES.key, null)) ?: base.gauges,
@@ -54,6 +55,10 @@ object HudOverlaySettings {
                 ?: base.arPlacement,
             mapStreets = prefs.getBoolean(SharedPreferencesKeys.HUD_AR_MAP.key, base.mapStreets),
             mapEdges = prefs.getBoolean(SharedPreferencesKeys.HUD_AR_MAP_EDGES.key, base.mapEdges),
+            mapTilt = prefs.getFloat(SharedPreferencesKeys.HUD_MAP_TILT.key, base.mapTilt)
+                .coerceIn(HudArArrow.MAP_TILT_MIN, HudArArrow.MAP_TILT_MAX),
+            mapZoom = prefs.getFloat(SharedPreferencesKeys.HUD_MAP_ZOOM.key, base.mapZoom)
+                .coerceIn(HudArArrow.MAP_ZOOM_MIN, HudArArrow.MAP_ZOOM_MAX),
             font = HudOverlayModel.Font.fromKey(prefs.getString(SharedPreferencesKeys.HUD_FONT.key, null)) ?: base.font,
             iconStyle = HudOverlayModel.IconStyle.fromKey(prefs.getString(SharedPreferencesKeys.HUD_ICON_STYLE.key, null)) ?: base.iconStyle,
             showTurnFromM = prefs.getInt(SharedPreferencesKeys.HUD_NAV_SHOW_TURN_FROM_M.key, base.showTurnFromM)
@@ -100,6 +105,8 @@ object HudOverlaySettings {
             .putString(SharedPreferencesKeys.HUD_AR_PLACEMENT.key, config.arPlacement.key)
             .putBoolean(SharedPreferencesKeys.HUD_AR_MAP.key, config.mapStreets)
             .putBoolean(SharedPreferencesKeys.HUD_AR_MAP_EDGES.key, config.mapEdges)
+            .putFloat(SharedPreferencesKeys.HUD_MAP_TILT.key, config.mapTilt)
+            .putFloat(SharedPreferencesKeys.HUD_MAP_ZOOM.key, config.mapZoom)
             .putString(SharedPreferencesKeys.HUD_FONT.key, config.font.key)
             .putString(SharedPreferencesKeys.HUD_ICON_STYLE.key, config.iconStyle.key)
             .putInt(SharedPreferencesKeys.HUD_NAV_SHOW_TURN_FROM_M.key, config.showTurnFromM)

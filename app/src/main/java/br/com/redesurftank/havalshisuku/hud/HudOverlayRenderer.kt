@@ -743,7 +743,7 @@ class HudOverlayRenderer {
         // Never above the visible band (y 40) once scaled.
         val top = if (map) maxOf(horizon, HudArArrow.BOTTOM - (HudArArrow.BOTTOM - 40f) / sy) else place.top
         val shape = when {
-            route != null -> HudArArrow.mapScene(tbt.streets, route, tbt.arDestination, horizon)
+            route != null -> HudArArrow.mapScene(tbt.streets, route, tbt.arDestination, horizon, tbt.mapTilt, tbt.mapZoom)
             tbt.dynamicRoundabout -> HudArArrow.roundabout(
                 meters, tbt.exitAngle!!.toFloat(), tbt.roundaboutClockwise,
                 M.passedExitAngles(tbt.exitAngle, tbt.exitNumber), tbt.arProgress, place
@@ -1199,20 +1199,27 @@ class HudOverlayRenderer {
     /**
      * A "what you'd see through the windshield" picture of [config] in [scenario]: a road at
      * dusk, the car's own HUD (speed, icons, lane keeping), and the Impulse overlay drawn by this
-     * renderer. Only the band that reaches the optics (y 40..200) is shown.
+     * renderer. Only the band that reaches the optics (y 40..200) is shown. [overlayOnly]: just
+     * the overlay on black, as the HUD draws it (the settings' map examples, owner 2026-10-28:
+     * behind the road and the car's speed the map's options couldn't be told apart).
      */
     fun preview(
         config: M.Config,
         scenario: PreviewScenario = previewScenarios(config.layout).first(),
         width: Int = 480,
-        height: Int = 160
+        height: Int = 160,
+        overlayOnly: Boolean = false
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.scale(width / 480f, height / 160f)
         canvas.translate(0f, -40f)
-        drawScene(canvas)
-        drawNativeHud(canvas, scenario.speedKmh)
+        if (overlayOnly) {
+            canvas.drawColor(Color.BLACK)
+        } else {
+            drawScene(canvas)
+            drawNativeHud(canvas, scenario.speedKmh)
+        }
         if (config.active) {
             val frame = M.frameFor(
                 config, scenario.route, scenario.powerPercent, scenario.rpmTenths,
@@ -1235,6 +1242,18 @@ class HudOverlayRenderer {
     private fun previewStreets(scenario: PreviewScenario): List<br.com.redesurftank.havalshisuku.map.LocalRoad> {
         val dirs = scenario.route ?: return emptyList()
         if (dirs.turn?.startsWith("ROUNDABOUT") == true) return emptyList()
+        if (scenario === AR_MAP) {
+            // A small grid: streets either side before the turn, the turn's street, one beyond.
+            val road = { pts: FloatArray, w: Float -> br.com.redesurftank.havalshisuku.map.LocalRoad(pts, w) }
+            return listOf(
+                road(floatArrayOf(0f, -40f, 0f, 120f, 0f, 700f), 1f),
+                road(floatArrayOf(-200f, 25f, 0f, 25f), 0.6f),
+                road(floatArrayOf(-200f, 70f, 0f, 70f, 300f, 70f), 0.8f),
+                road(floatArrayOf(0f, 120f, 200f, 170f), 0.6f),
+                road(floatArrayOf(-300f, 200f, 0f, 200f, 300f, 200f), 0.8f),
+                road(floatArrayOf(-60f, 25f, -60f, 400f), 0.6f)
+            )
+        }
         val d = dirs.distanceM?.toFloat()?.takeIf { it > M.CHEVRON_SHOW_M } ?: return emptyList()
         val ahead = br.com.redesurftank.havalshisuku.map.LocalRoad(floatArrayOf(0f, -40f, 0f, 120f, 0f, 700f), 1f)
         if (d > 600f) return listOf(ahead)
@@ -1370,9 +1389,22 @@ private val AR_BENDING = PreviewScenario(
 /** AR: at a sharp left while regenerating. */
 private val AR_AT_TURN = PreviewScenario(18, arTurn("SHARP_LEFT", 10, "10 m", "R. Augusta"), -45, null)
 
+/**
+ * AR: a right turn 70 m on, among a few streets (see [HudOverlayRenderer.previewStreets]): the
+ * map's own example for the settings' pictures (tilt, zoom, edges...), not in the cycle. Near,
+ * so the map is big and nearly opaque (owner, 2026-10-28: at 250 and 140 m the streets were
+ * too faint and small to tell the options apart).
+ */
+internal val AR_MAP = PreviewScenario(52, arTurn("TURN_RIGHT", 70, "70 m", "R. Haddock Lobo"), 15, null)
+
 /** Three moments per layout; the Telas previews cycle through them. */
 /** What a settings change affects, to show it on the example where it is visible. */
-enum class PreviewFocus { ARROW, CHEVRONS, FAR, GAUGES }
+enum class PreviewFocus { ARROW, CHEVRONS, FAR, GAUGES, MAP }
+
+/** The example that shows [focus] for [layout] (the settings' (i) pictures); [PreviewFocus.MAP] has its own. */
+fun previewScenarioFor(layout: M.Layout, focus: PreviewFocus?): PreviewScenario =
+    if (focus == PreviewFocus.MAP && layout == M.Layout.AR) AR_MAP
+    else previewScenarios(layout).let { it[(focus?.let { f -> previewFocusIndex(layout, f) } ?: 0).coerceIn(0, it.size - 1)] }
 
 /** Index into [previewScenarios] of the example that shows [focus] for [layout]. */
 fun previewFocusIndex(layout: M.Layout, focus: PreviewFocus): Int {
@@ -1381,6 +1413,8 @@ fun previewFocusIndex(layout: M.Layout, focus: PreviewFocus): Int {
         // The sharp left at 10 m is the one with chevrons; the bending turn shows the arrow.
         PreviewFocus.CHEVRONS -> if (layout == M.Layout.AR) list.indexOf(AR_AT_TURN) else 0
         PreviewFocus.ARROW -> if (layout == M.Layout.AR) list.indexOf(AR_BENDING) else 0
+        // The cycle's map with the most road: the far turn.
+        PreviewFocus.MAP -> if (layout == M.Layout.AR) list.indexOf(AR_FAR) else 0
         // The highway exit 2.4 km away is the far one (small arrow).
         PreviewFocus.FAR -> list.indexOf(HIGHWAY_EXIT).takeIf { it >= 0 } ?: list.indexOf(AR_FAR).takeIf { it >= 0 } ?: 0
         // One with the engine running, so both power and RPM show.

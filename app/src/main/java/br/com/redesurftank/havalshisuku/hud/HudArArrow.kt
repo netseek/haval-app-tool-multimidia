@@ -178,33 +178,58 @@ object HudArArrow {
      */
     const val MAP_MIN_PX = 10f
 
-    private fun mapBand(horizon: Float) = MAP_NEAR_Y - horizon
+    /** The owner's map options (2026-10-28, Estilo tab), their ranges; 1 = the original view. */
+    // Tilt (owner, 2026-10-28): further down than up; not much past the original view.
+    const val MAP_TILT_MIN = 0.1f
+    const val MAP_TILT_MAX = 1.5f
+    /** Zoom out no further than this: the map's roads end ~720 m ahead (HudMapFeed), past that it'd be empty. */
+    const val MAP_ZOOM_MIN = 0.6f
+    const val MAP_ZOOM_MAX = 1.5f
 
-    /** Height above the map's horizon (at row [horizon]) in px of a point [d] metres ahead. */
-    fun mapOffset(d: Float, horizon: Float = MAP_HORIZON_Y): Float {
-        val dd = d.coerceAtLeast(-0.5f * MAP_DEPTH_M)
-        return mapBand(horizon) * (1f - ln(1f + dd / MAP_DEPTH_M) / ln(1f + MAP_FAR_M / MAP_DEPTH_M))
+    /**
+     * How the map is projected: its [horizon] row; [tilt] scales [MAP_DEPTH_M] (more = seen more
+     * from above, the road ahead gets more of the height; less = nearer the ground, the near
+     * stretch takes it); [zoom] scales the metres (less = the map further away: smaller, more of
+     * it on screen; owner, 2026-10-28). Both 1 = the original view.
+     */
+    data class MapLens(val horizon: Float = MAP_HORIZON_Y, val tilt: Float = 1f, val zoom: Float = 1f) {
+        val depthM: Float get() = MAP_DEPTH_M * tilt
     }
 
+    private fun mapBand(horizon: Float) = MAP_NEAR_Y - horizon
+
+    /** Height above the map's horizon in px of a point [d] metres ahead. */
+    fun mapOffset(d: Float, lens: MapLens): Float {
+        val depth = lens.depthM
+        val dd = (d * lens.zoom).coerceAtLeast(-0.5f * depth)
+        return mapBand(lens.horizon) * (1f - ln(1f + dd / depth) / ln(1f + MAP_FAR_M / depth))
+    }
+
+    fun mapOffset(d: Float, horizon: Float = MAP_HORIZON_Y): Float = mapOffset(d, MapLens(horizon))
+
     /** Pixels per metre sideways at [d] metres ahead: shrinks with the height above the horizon. */
-    fun mapPxPerM(d: Float, horizon: Float = MAP_HORIZON_Y): Float = MAP_PX_PER_M * mapOffset(d, horizon) / mapBand(horizon)
+    fun mapPxPerM(d: Float, lens: MapLens): Float = MAP_PX_PER_M * lens.zoom * mapOffset(d, lens) / mapBand(lens.horizon)
+
+    fun mapPxPerM(d: Float, horizon: Float = MAP_HORIZON_Y): Float = mapPxPerM(d, MapLens(horizon))
 
     /** Screen point for (x right, d ahead) metres in the car's frame; null past [MAP_FAR_M]. */
-    fun mapProject(x: Float, d: Float, horizon: Float = MAP_HORIZON_Y): Pair<Float, Float>? =
-        if (d > MAP_FAR_M) null else CX + x * mapPxPerM(d, horizon) to horizon + mapOffset(d, horizon)
+    fun mapProject(x: Float, d: Float, lens: MapLens): Pair<Float, Float>? =
+        if (d * lens.zoom > MAP_FAR_M) null else CX + x * mapPxPerM(d, lens) to lens.horizon + mapOffset(d, lens)
+
+    fun mapProject(x: Float, d: Float, horizon: Float = MAP_HORIZON_Y): Pair<Float, Float>? = mapProject(x, d, MapLens(horizon))
 
     /**
      * A centreline (metres, car frame) [half] metres wide each side, on screen, at least
      * [minPx] thick; split where it leaves the view.
      */
-    private fun mapRibbon(line: List<W>, half: Float, minPx: Float, horizon: Float): List<List<Pt>> {
+    private fun mapRibbon(line: List<W>, half: Float, minPx: Float, lens: MapLens): List<List<Pt>> {
         val runs = ArrayList<List<Pt>>()
         var run = ArrayList<Pt>()
         for (i in line.indices) {
             val d = unit(line[maxOf(0, i - 1)], line[minOf(line.size - 1, i + 1)])
             val p = line[i]
-            val l = mapProject(p.x - d.z * half, p.z + d.x * half, horizon)
-            val r = mapProject(p.x + d.z * half, p.z - d.x * half, horizon)
+            val l = mapProject(p.x - d.z * half, p.z + d.x * half, lens)
+            val r = mapProject(p.x + d.z * half, p.z - d.x * half, lens)
             if (l == null || r == null) {
                 if (run.size > 1) runs += run
                 run = ArrayList()
@@ -274,14 +299,17 @@ object HudArArrow {
         roads: List<br.com.redesurftank.havalshisuku.map.LocalRoad>,
         route: FloatArray,
         destSide: Int?,
-        horizon: Float = MAP_HORIZON_Y
+        horizon: Float = MAP_HORIZON_Y,
+        tilt: Float = 1f,
+        zoom: Float = 1f
     ): Shape {
+        val lens = MapLens(horizon, tilt, zoom)
         // The road under the car points straight up the HUD, starting at the centre. A GPS
         // heading that doesn't match the street otherwise leaves the blue line diagonal.
         val rawRoute = metres(route)
         val align = egoAlign(rawRoute)
         fun W.placed() = align?.let { ego(it) } ?: this
-        val ahead = rawRoute.map { it.placed() }.filter { it.z <= MAP_FAR_M }
+        val ahead = rawRoute.map { it.placed() }.filter { it.z * zoom <= MAP_FAR_M }
         // The streets the route runs on are drawn as wide as the blue (owner, 2026-10-27: an
         // avenue showed wider than the route, a ramp narrower); the others keep their class.
         // A street is under the route when [MAP_ON_ROUTE_PTS] of its points (~20 m) lie on it, so
@@ -305,7 +333,7 @@ object HudArArrow {
             val pts = metres(road.pts).map { it.placed() }
             val under = pts.count { cell(it.x, it.z) in cells } >= MAP_ON_ROUTE_PTS
             val w = if (under) 1f else road.width
-            gray += mapRibbon(pts, MAP_HALF_M * w, MAP_MIN_PX * w, horizon)
+            gray += mapRibbon(pts, MAP_HALF_M * w, MAP_MIN_PX * w, lens)
         }
         // The route starts at the car, [MAP_NEAR_Y] above the HUD's bottom, while the grey roads
         // run on behind it to the edge: carry it back [MAP_BEHIND_M] the way it starts, so both
@@ -314,35 +342,35 @@ object HudArArrow {
             val d = unit(ahead[0], ahead[1])
             listOf(W(ahead[0].x - d.x * MAP_BEHIND_M, ahead[0].z - d.z * MAP_BEHIND_M)) + ahead
         } else ahead
-        val blue = mapRibbon(line, MAP_HALF_M, MAP_MIN_PX, horizon).lastOrNull().orEmpty()
+        val blue = mapRibbon(line, MAP_HALF_M, MAP_MIN_PX, lens).lastOrNull().orEmpty()
         var head = FloatArray(0)
         var flag: Flag? = null
         if (line.size >= 2) {
             val end = line.last()
             val d = unit(line[maxOf(0, line.size - 4)], end)
-            val tip = mapProject(end.x + d.x * MAP_HEAD_L_M, end.z + d.z * MAP_HEAD_L_M, horizon)
-            val l = mapProject(end.x - d.z * MAP_HEAD_HALF_M, end.z + d.x * MAP_HEAD_HALF_M, horizon)
-            val r = mapProject(end.x + d.z * MAP_HEAD_HALF_M, end.z - d.x * MAP_HEAD_HALF_M, horizon)
+            val tip = mapProject(end.x + d.x * MAP_HEAD_L_M, end.z + d.z * MAP_HEAD_L_M, lens)
+            val l = mapProject(end.x - d.z * MAP_HEAD_HALF_M, end.z + d.x * MAP_HEAD_HALF_M, lens)
+            val r = mapProject(end.x + d.z * MAP_HEAD_HALF_M, end.z - d.x * MAP_HEAD_HALF_M, lens)
             // Arriving: no head (owner, 2026-10-25), the route ends at the flag.
             if (destSide == null && tip != null && l != null && r != null) head = floatArrayOf(tip.first, tip.second, l.first, l.second, r.first, r.second)
             if (destSide != null) {
-                val height = MAP_FLAG_H_M * mapPxPerM(end.z, horizon)
+                val height = MAP_FLAG_H_M * mapPxPerM(end.z, lens)
                 flag = if (destSide == 0) {
                     // Side not in the maneuver: just past the head, on the road.
                     val ahead = MAP_HEAD_L_M + 4f
-                    mapProject(end.x + d.x * ahead, end.z + d.z * ahead, horizon)?.let { (fx, fy) -> Flag(fx, fy, height) }
+                    mapProject(end.x + d.x * ahead, end.z + d.z * ahead, lens)?.let { (fx, fy) -> Flag(fx, fy, height) }
                 } else if (blue.isNotEmpty()) {
                     // At the drawn road's own edge (there is no head to clear any more).
                     val e = blue.last()
-                    flagBeside(e.lx to e.ly, e.rx to e.ry, null, destSide, end.z, horizon, height)
+                    flagBeside(e.lx to e.ly, e.rx to e.ry, null, destSide, end.z, lens, height)
                 } else if (l != null && r != null) {
                     // Same side as the arrow ([destination]): outside the head and the drawn road.
                     // A metre offset sits inside the head (it is wider than the street) and, far
                     // away, inside the street once that is widened to [MAP_MIN_PX].
-                    flagBeside(l, r, blue.lastOrNull(), destSide, end.z, horizon, height)
+                    flagBeside(l, r, blue.lastOrNull(), destSide, end.z, lens, height)
                 } else {
                     val off = destSide * (MAP_HEAD_HALF_M + MAP_FLAG_GAP_M)
-                    mapProject(end.x + d.z * off, end.z - d.x * off, horizon)?.let { (fx, fy) ->
+                    mapProject(end.x + d.z * off, end.z - d.x * off, lens)?.let { (fx, fy) ->
                         Flag(fx, fy, height, pennant = if (destSide < 0) -1 else 1)
                     }
                 }
@@ -362,7 +390,7 @@ object HudArArrow {
         roadEnd: Pt?,
         side: Int,
         depthM: Float,
-        horizon: Float,
+        lens: MapLens,
         height: Float
     ): Flag {
         val dx = headR.first - headL.first
@@ -383,7 +411,7 @@ object HudArArrow {
                 ay = ey
             }
         }
-        val gap = max(MAP_FLAG_GAP_PX, MAP_FLAG_GAP_M * mapPxPerM(depthM, horizon))
+        val gap = max(MAP_FLAG_GAP_PX, MAP_FLAG_GAP_M * mapPxPerM(depthM, lens))
         val s = side.toFloat()
         return Flag(ax + ux * s * gap, ay + uy * s * gap, height, pennant = if (ux * s < 0f) -1 else 1)
     }

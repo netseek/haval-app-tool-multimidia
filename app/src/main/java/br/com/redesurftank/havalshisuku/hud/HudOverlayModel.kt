@@ -600,10 +600,11 @@ object HudOverlayModel {
     }
 
     /** "Sempre": how far ahead the road's bend is read, and the most the arrow turns for it. */
-    // 100 m (owner, 2026-10-27: it stayed upright where the map already showed the road
-    // bending; 60 m only caught the nearest part). The still arrow leans to the turn from there.
-    const val CHEVRON_ROAD_AHEAD_M = 100f
-    const val CHEVRON_ROAD_MAX_DEG = 15f
+    // 40 m (owner, 2026-10-28: at 100 m it pointed to the next curve while still in this one;
+    // on that drive's track, 100 m leaned against the curve being driven 67 times, 40 m 32).
+    // Up to 30 degrees (owner, 2026-10-28: a little more on soft curves; it was 15).
+    const val CHEVRON_ROAD_AHEAD_M = 40f
+    const val CHEVRON_ROAD_MAX_DEG = 30f
     /**
      * ...turning this share of the bend: only the road's trend (owner, 2026-10-27: a quarter of
      * the 2x it had, which followed the curves fully).
@@ -877,6 +878,9 @@ object HudOverlayModel {
         val routeClear: Boolean = false,
         /** AR map: screen row of its horizon. */
         val mapHorizon: Float = HudArArrow.MAP_HORIZON_Y,
+        /** AR map: the owner's tilt and zoom ([HudArArrow.MapLens]). */
+        val mapTilt: Float = 1f,
+        val mapZoom: Float = 1f,
         /** AR map on but its area not loaded yet: a note in place of the arrow (owner: no arrows). */
         val mapPending: Boolean = false,
         /** ...and how much of it is loaded (0..1), for the bar under the note. */
@@ -1245,6 +1249,12 @@ object HudOverlayModel {
         val mapStreets: Boolean = false,
         /** AR map: the grey streets as their edge lines only, instead of filled (owner option). */
         val mapEdges: Boolean = false,
+        /**
+         * AR map (owner, 2026-10-28, Estilo tab): tilt (more = seen more from above) and zoom
+         * (less = the map further away, more of it); 1 = the original view.
+         */
+        val mapTilt: Float = 1f,
+        val mapZoom: Float = 1f,
         /** The HUD's text face (owner, 2026-10-24: Leve by default; thin was too thin). */
         val font: Font = Font.LIGHT,
         /** Maneuver icons: our bold arrows, or Google's (Material Symbols) as in Google Maps. */
@@ -1299,10 +1309,10 @@ object HudOverlayModel {
             )
             // The old Navegação layout with its defaults.
             BASIC -> Config(layout = Layout.NAVIGATION, gauges = Gauges.BARS)
-            // The least on the glass: the turn only from 300 m, no trip line, no indicators, all blue.
+            // The least on the glass: the turn only from 300 m, no indicators, all blue (the trip
+            // line comes with navigation since 2026-10-28, owner: no switch for it any more).
             DISCREET -> Config(
                 layout = Layout.NAVIGATION,
-                trip = false,
                 gauges = Gauges.NONE,
                 showTurnFromM = 300,
                 iconStyle = IconStyle.GOOGLE,
@@ -1466,6 +1476,8 @@ object HudOverlayModel {
                         arProgress = arProgress,
                         // The map's horizon at the top of the HUD (owner: the default, no switch).
                         mapHorizon = HudArArrow.MAP_HORIZON_TOP_Y,
+                        mapTilt = config.mapTilt,
+                        mapZoom = config.mapZoom,
                         mapPending = config.mapStreets && mapPending && streets.isEmpty() && !tbt.dynamicRoundabout,
                         mapProgress = mapProgress,
                         onRoundabout = onRoundabout && tbt.exitNumber != null,

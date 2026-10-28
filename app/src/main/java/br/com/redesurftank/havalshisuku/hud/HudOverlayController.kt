@@ -239,6 +239,7 @@ object HudOverlayController {
                 // Crossing a stop also redraws: the blue chevrons hide at 0.
                 val wasMoving = speedKmh > 0.0
                 speedKmh = PowerFlowMapper.parseNumber(value).takeIf { it.isFinite() && it in 0.0..300.0 } ?: 0.0
+                HudMapFeed.setCarSpeed(speedKmh)
                 val wide = HudOverlayModel.wideArcs(speedKmh, wideArcs)
                 val moving = speedKmh > 0.0
                 val stopDemo = !wasMoving && moving && demoDriveStartMs != 0L
@@ -303,6 +304,8 @@ object HudOverlayController {
                 "gps_hdg" to r(HudMapFeed.gpsBearing, 0),
                 "kmh" to r(HudMapFeed.gpsSpeedMps() * 3.6f, 0),
                 "fix_ms" to HudMapFeed.fixAgeMs(),
+                "acc" to HudMapFeed.lastAccuracyM.takeIf { it.isFinite() }?.let { r(it, 0) },
+                "dr" to HudMapFeed.deadReckoning,
                 "turn" to dirs.turn,
                 "aa_m" to dirs.distanceM,
                 "ar_m" to tbt?.arMeters?.let { r(it, 0) },
