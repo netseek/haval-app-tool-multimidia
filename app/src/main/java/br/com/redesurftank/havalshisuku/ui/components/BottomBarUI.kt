@@ -751,7 +751,6 @@ fun CoffeeOsSeatVentilationButton(
 
 @Composable
 fun HomeButton(
-        scope: CoroutineScope,
         context: Context,
         modifier: Modifier = Modifier
 ) {
@@ -778,17 +777,15 @@ fun HomeButton(
                                 BottomBarState.isSettingsMenuExpanded = false
                                 BottomBarState.isOverrideMenuExpanded = false
                                 BottomBarState.isAcMenuExpanded = false
+                                BottomBarState.isDashboardExpanded = false
 
-                                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                        ShizukuUtils.runCommandAndGetOutput(arrayOf("input", "keyevent", "3"))
-                                }
-                                val homeIntent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
-                                        addCategory(android.content.Intent.CATEGORY_HOME)
-                                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
-                                }
-                                try {
-                                        context.startActivity(homeIntent)
-                                } catch (_: Exception) {}
+                                // Open the Haval app list instead of the stock Beantech home/launcher.
+                                val appListPackage = BottomBarState.SwipeUpAction.APP_LAUNCHER_PACKAGE
+                                BottomBarState.selectedPackage = appListPackage
+                                br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.launchAnyAppDetached(
+                                        context,
+                                        appListPackage
+                                )
                         }
         ) {
                 CoffeeOsHomeIcon(
@@ -2369,8 +2366,8 @@ fun CenteredAppLauncherSection(
 					// [ 🚗 ] Vehicle Settings (Condução - CoffeeOS 3.0 style)
 					VehicleSettingsButton()
 
-					// [ 🏠 ] Home Button (CoffeeOS 3.0 style)
-					HomeButton(scope = scope, context = context)
+					// [ 🏠 ] Home Button (CoffeeOS 3.0 style) → com.beantechs.applist
+					HomeButton(context = context)
 				}
 			}
 		}
