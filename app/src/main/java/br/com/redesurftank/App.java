@@ -73,6 +73,7 @@ public class App extends Application {
                 "app_start",
                 "versionCode=" + BuildConfig.VERSION_CODE + " versionName=" + BuildConfig.VERSION_NAME
         );
+        br.com.redesurftank.havalshisuku.managers.CarPlayBridgeBootstrapManager.start(this);
         br.com.redesurftank.havalshisuku.managers.DisplayAppLauncher.ensureDefaultDesktopShortcuts();
 
         // Before ForegroundService / cluster projector start: if the active theme is

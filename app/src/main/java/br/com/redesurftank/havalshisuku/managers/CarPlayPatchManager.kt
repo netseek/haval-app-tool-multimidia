@@ -30,6 +30,30 @@ object CarPlayPatchManager {
     private const val PROCESS_RESTART_TIMEOUT_MS = 3_000L
     private const val PROCESS_RESTART_POLL_MS = 100L
     private const val OEM_CLIENT_REFRESH_SETTLE_MS = 1_000L
+    private val bridgeMappingProbe = """
+        impulse_cp_pids=${'$'}(pidof com.ts.carplay 2>/dev/null)
+        impulse_cp_pid_status=${'$'}?
+        if [ "${'$'}impulse_cp_pid_status" -gt 1 ]; then
+            echo bridge-map-unknown
+            exit 0
+        fi
+        for impulse_cp_pid in ${'$'}impulse_cp_pids; do
+            case "${'$'}impulse_cp_pid" in
+                *[!0-9]*) echo bridge-map-unknown; exit 0 ;;
+            esac
+            if [ ! -r "/proc/${'$'}impulse_cp_pid/maps" ]; then
+                echo bridge-map-unknown
+                exit 0
+            fi
+            grep -Fq '/libcarplay_video_bridge.so' "/proc/${'$'}impulse_cp_pid/maps" 2>/dev/null
+            case "${'$'}?" in
+                0) echo bridge-map-present; exit 0 ;;
+                1) ;;
+                *) echo bridge-map-unknown; exit 0 ;;
+            esac
+        done
+        echo bridge-map-clear
+    """.trimIndent()
 
     private data class BundledPatchInstallResult(
         val success: Boolean,
@@ -296,6 +320,7 @@ object CarPlayPatchManager {
     }
 
     private fun reloadCarPlayProcessesAfterPatchMount(reason: String) {
+        if (deferPatchProcessReload(reason)) return
         val visualTaskOnDisplay0 = DisplayAppLauncher.isCarPlayOnDisplay(0)
         val visualTaskOnDisplay3 = DisplayAppLauncher.isCarPlayOnDisplay(3)
         val visualTaskActive = visualTaskOnDisplay0 || visualTaskOnDisplay3
@@ -345,6 +370,33 @@ object CarPlayPatchManager {
         }
     }
 
+    private fun deferPatchProcessReload(reason: String): Boolean {
+        val automaticEnabled = try {
+            CarPlayBridgeBootstrapManager.isAutomaticEnabled()
+        } catch (e: Exception) {
+            Log.w(TAG, "[$reason] Bridge bootstrap state unavailable; preserving CarPlay processes", e)
+            return true
+        }
+        val cause = if (automaticEnabled) {
+            "automatic_bootstrap_owner"
+        } else {
+            // A manual bridge can remain pinned even while automatic preparation
+            // is disabled. Never drop its OEM process or injector ownership here.
+            val mappingState = sh(bridgeMappingProbe).trim()
+            when (mappingState) {
+                "bridge-map-clear" -> return false
+                "bridge-map-present" -> "bridge_mapped"
+                else -> "bridge_state_unknown"
+            }
+        }
+        Log.w(TAG, "[$reason] Deferring CarPlay patch process reload: $cause")
+        ClusterPersistentEventLogger.log(
+            "carplay_patch_process_reload_deferred",
+            mapOf("reason" to reason, "cause" to cause)
+        )
+        return true
+    }
+
     /**
      * Reloads patched code without putting the package in Android's force-stopped state.
      *
@@ -359,6 +411,7 @@ object CarPlayPatchManager {
         serviceComponent: String,
         reason: String
     ): Boolean {
+        if (deferPatchProcessReload(reason)) return false
         val originalPids = readProcessIds(packageName)
         ClusterPersistentEventLogger.log(
             "carplay_patch_process_reload_started",
@@ -370,15 +423,17 @@ object CarPlayPatchManager {
             )
         )
 
-        originalPids.forEach { pid ->
+        for (pid in originalPids) {
+            if (deferPatchProcessReload(reason)) return false
             sh("kill -TERM $pid 2>/dev/null || true")
         }
 
         if (originalPids.isNotEmpty()) {
             Thread.sleep(PROCESS_RELOAD_GRACE_MS)
-            readProcessIds(packageName)
-                .filter { it in originalPids }
-                .forEach { pid -> sh("kill -KILL $pid 2>/dev/null || true") }
+            for (pid in readProcessIds(packageName).filter { it in originalPids }) {
+                if (deferPatchProcessReload(reason)) return false
+                sh("kill -KILL $pid 2>/dev/null || true")
+            }
         }
 
         var replacementPids =
@@ -386,6 +441,7 @@ object CarPlayPatchManager {
             else waitForReplacementProcess(packageName, originalPids)
         var startFallbackUsed = false
         if (replacementPids.isEmpty()) {
+            if (deferPatchProcessReload(reason)) return false
             startFallbackUsed = true
             sh("am startservice -n $serviceComponent 2>/dev/null || true")
             replacementPids = waitForReplacementProcess(packageName, originalPids)
@@ -420,13 +476,25 @@ object CarPlayPatchManager {
      * lifecycle clears the stale manager. AppList is a separate process and can be renewed with
      * a direct signal; if it was not active, its next normal launch creates a fresh manager.
      */
-    private fun refreshOemCarPlayClientsAfterHostReload(reason: String) {
-        Thread.sleep(OEM_CLIENT_REFRESH_SETTLE_MS)
-        refreshSystemUiCarPlayView(reason)
-        refreshAppListCarPlayManager(reason)
+    /** Only renew client Binders after a supervisor-owned, verified idle host replacement. */
+    fun postBootstrapClientRefresh(verifier: () -> Boolean) {
+        refreshOemCarPlayClientsAfterHostReload("automatic_bridge_ready", verifier)
     }
 
-    private fun refreshSystemUiCarPlayView(reason: String) {
+    private fun clientRefreshAllowed(reason: String, verifier: (() -> Boolean)?): Boolean =
+        if (verifier == null) !deferPatchProcessReload(reason)
+        else runCatching { verifier() }.getOrDefault(false)
+
+    private fun refreshOemCarPlayClientsAfterHostReload(reason: String, verifier: (() -> Boolean)? = null) {
+        if (!clientRefreshAllowed(reason, verifier)) return
+        Thread.sleep(OEM_CLIENT_REFRESH_SETTLE_MS)
+        if (!clientRefreshAllowed(reason, verifier)) return
+        refreshSystemUiCarPlayView(reason, verifier)
+        refreshAppListCarPlayManager(reason, verifier)
+    }
+
+    private fun refreshSystemUiCarPlayView(reason: String, verifier: (() -> Boolean)? = null) {
+        if (!clientRefreshAllowed(reason, verifier)) return
         val systemUiPidsBefore = readProcessIds(SYSTEM_UI_PACKAGE)
         val overlayListing = sh("cmd overlay list '$SYSTEM_UI_PACKAGE' 2>/dev/null || true")
         val overlayInitiallyEnabled =
@@ -447,6 +515,7 @@ object CarPlayPatchManager {
 
         val toggleAction = if (overlayInitiallyEnabled) "disable" else "enable"
         val restoreAction = if (overlayInitiallyEnabled) "enable" else "disable"
+        if (!clientRefreshAllowed(reason, verifier)) return
         try {
             sh("cmd overlay $toggleAction --user 0 '$SYSTEM_UI_REFRESH_OVERLAY' 2>/dev/null || true")
             Thread.sleep(OEM_CLIENT_REFRESH_SETTLE_MS)
@@ -486,7 +555,8 @@ object CarPlayPatchManager {
         )
     }
 
-    private fun refreshAppListCarPlayManager(reason: String) {
+    private fun refreshAppListCarPlayManager(reason: String, verifier: (() -> Boolean)? = null) {
+        if (!clientRefreshAllowed(reason, verifier)) return
         val originalPids = readProcessIds(APP_LIST_PACKAGE)
         if (originalPids.isEmpty()) {
             ClusterPersistentEventLogger.log(
@@ -500,11 +570,17 @@ object CarPlayPatchManager {
             return
         }
 
-        originalPids.forEach { pid -> sh("kill -TERM $pid 2>/dev/null || true") }
+        originalPids.forEach { pid ->
+            if (!clientRefreshAllowed(reason, verifier)) return
+            sh("[ \"\$(tr '\\000' '\\n' < /proc/$pid/cmdline | head -n 1)\" = '$APP_LIST_PACKAGE' ] && kill -TERM $pid 2>/dev/null || true")
+        }
         Thread.sleep(PROCESS_RELOAD_GRACE_MS)
         readProcessIds(APP_LIST_PACKAGE)
             .filter { it in originalPids }
-            .forEach { pid -> sh("kill -KILL $pid 2>/dev/null || true") }
+            .forEach { pid ->
+                if (!clientRefreshAllowed(reason, verifier)) return
+                sh("[ \"\$(tr '\\000' '\\n' < /proc/$pid/cmdline | head -n 1)\" = '$APP_LIST_PACKAGE' ] && kill -KILL $pid 2>/dev/null || true")
+            }
 
         val replacementPids = waitForReplacementProcess(APP_LIST_PACKAGE, originalPids)
         Log.w(

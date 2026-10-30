@@ -1,0 +1,50 @@
+{
+  "version": 3,
+  "architecture": "arm64",
+  "modules": [
+    {
+      "name": "libAirPlay_ts.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libAirPlay_ts.so",
+      "sha256": "818cf91d3bac8f807328c58189db8cbcaa3e604e7263031d1b2257eebf2ff477",
+      "note": {"offset": 720, "hex": "040000001400000003000000474e5500ae31cea172e49bde25a35f0e22f59b604677776b"},
+      "functions": {
+        "session": {"offset": 278556, "signature": "ff4301d1fd7b04a9fd030191480000f0", "size": 460, "sha256": "0ee2c551ea9d1c25895a8d291341b3d92b392b3a6945c1c7b34139c4c8e64b68"}
+      },
+      "fileSize": 748792,
+      "executable": [{"offset": 0, "size": 320880, "sha256": "dbb00f167f7dd7e36c8575505d7685d4ab9d47d133f47dd64b220c7ed12ea6d8"}]
+    },
+    {
+      "name": "libcarplaystack.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libcarplaystack.so",
+      "sha256": "8d4c1fe001d3e8bf1299438a96ca07e12470bc60d75d0d52fe89fe5d18f85931",
+      "note": {"offset": 720, "hex": "040000001400000003000000474e550028e34ff758b023e863e2d574a3f1e8261152df17"},
+      "functions": {
+        "initialize": {"offset": 135732, "signature": "ff8300d1fd7b01a9fd430091e00700f9", "size": 136, "sha256": "67f524363ebf800437e465bfde76213900efd93c5694e1ab3bc8654c28ed6578"},
+        "start": {"offset": 136204, "signature": "ffc300d1fd7b02a9fd830091a0831ff8", "size": 140, "sha256": "c7150a2950e53cd351780ad45c1877f4bc5ebffc8d0b1a0a54dcb3021e0f9aa9"},
+        "data": {"offset": 137208, "signature": "ff0305d1fd7b12a9fc9b00f9fd830491", "size": 904, "sha256": "55a97e6f319e7c90412725bd1c3c7c90316283809c10629b51cea916848e9022"},
+        "finalize": {"offset": 135868, "signature": "ff8300d1fd7b01a9fd430091e00700f9", "size": 92, "sha256": "8a42e2ffb7cfa3727ba3bfe0217ca6038b56fbcd938bd9cc551db98831b52e55"},
+        "dimensions": {"offset": 135960, "signature": "ffc300d1fd7b02a9fd830091a0831ff8", "size": 244, "sha256": "cb0d3b55cd1f28a49cdd51c1db5808e92eb1d1aff762689290cf3adc60951d97"},
+        "stop": {"offset": 136344, "signature": "ff0301d1fd7b03a9fdc30091a0831ff8", "size": 192, "sha256": "a075f186d5e10ccfc6a78a4784d2053ce15db114d73ace5d6d87b124e28b5c5e"},
+        "avcc": {"offset": 136536, "signature": "ff4302d1fd7b08a9fd03029148d03bd5", "size": 672, "sha256": "fecb3343e7f4e3d62d1d6f07cc1452a6c7a51bf650136366a8811ebb1dc631d2"},
+        "displays": {"offset": 88260, "signature": "ff8303d1fd7b0da9fd43039148d03bd5", "size": 920, "sha256": "a86e97dbcb9ed9d8157861a6a4a8ba4844553f91d871ff3cd784eaa00321e318"}
+      },
+      "fileSize": 597816,
+      "executable": [{"offset": 0, "size": 146960, "sha256": "624904258227550d25292cf6d33396369bd09167fe49294e114986189d4d1d96"}]
+    },
+    {
+      "name": "libCoreUtils_ts.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libCoreUtils_ts.so",
+      "sha256": "8466bd2e24e3f8eb0217d33686d03b54806993074c3c33d3a1e5608fdd90fed0",
+      "note": {"offset": 720, "hex": "040000001400000003000000474e5500ddf9684ff4398657cc0fc096c148b50bb5d1c3ea"},
+      "functions": {
+        "getLength": {"offset": 395448, "signature": "ff0301d1fd7b03a9fdc3009148d03bd5", "size": 104, "sha256": "dc6cf6e3220479867a2a1288c12dda8492b91d5280ba7b5f9991931b2cb52b44"},
+        "copyString": {"offset": 395736, "signature": "ffc301d1fd7b06a9fd83019148d03bd5", "size": 260, "sha256": "59c21b4926c6227f5d6af65e32bcc19bfbcb7aa178a37b9b72194c19f3a9df29"},
+        "retain": {"offset": 388080, "signature": "ff8300d1fd7b01a9fd430091e00700f9", "size": 36, "sha256": "b14d186738b9b1a1234a7543e4a0e4e450421d313f98bbe66b4310accb9614a3"},
+        "release": {"offset": 388116, "signature": "ff8300d1fd7b01a9fd430091e00700f9", "size": 36, "sha256": "ef1634843a805fbad076e1204f0d620898a8bd856823bfe3ad6b1fe55e5bc38c"}
+      },
+      "fileSize": 2717632,
+      "executable": [{"offset": 0, "size": 1365632, "sha256": "f7e86846ffe8c6c122e3a2ef13b08d8731d4c019cc242f112c366f4e9357afcb"}]
+    }
+  ],
+  "kind": "oem-cold-interception-v1"
+}
