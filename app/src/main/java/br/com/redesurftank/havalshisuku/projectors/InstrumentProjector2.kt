@@ -25,6 +25,9 @@ import br.com.redesurftank.App
 import br.com.redesurftank.havalshisuku.R
 import br.com.redesurftank.havalshisuku.utils.VirtualClusterPreferences
 import br.com.redesurftank.havalshisuku.diagnostics.ClusterPersistentEventLogger
+import br.com.redesurftank.havalshisuku.experimental.CarPlayCleanMapCoordinator
+import br.com.redesurftank.havalshisuku.experimental.CarPlayClusterHostPolicy
+import br.com.redesurftank.havalshisuku.experimental.CarPlaySecondaryClusterHost
 import br.com.redesurftank.havalshisuku.managers.AndroidAutoClusterController
 import br.com.redesurftank.havalshisuku.managers.ClusterBackgroundSync
 import br.com.redesurftank.havalshisuku.managers.ServiceManager
@@ -103,6 +106,8 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
     private val webViewsLoaded = mutableMapOf<WebView, Boolean>()
     private val pendingJsQueues = mutableMapOf<WebView, MutableList<String>>()
     private lateinit var root: FrameLayout
+    private var carPlayCleanMapSlot: FrameLayout? = null
+    private var carPlayCleanMapSlotLease: AutoCloseable? = null
     private var dataChangedListener: IDataChanged? = null
     private var tsrJob: Job? = null
     private var tpmsJob: Job? = null
@@ -1510,6 +1515,7 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         root = FrameLayout(outerContext).apply { setBackgroundColor(Color.TRANSPARENT) }
         setContentView(root)
         setupControlView(root)
+        attachCarPlayCleanMapSlot()
         // Directly above the native masks, below the theme WebView: the masks can never
         // cover the map, so the map needs no mask hole.
         AaClusterVideoHost.attachParent(root, above = nativeMaskContainer)
@@ -1546,6 +1552,9 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         artworkEncodingJob?.cancel()
         artworkEncodingJob = null
         scope.cancel()
+        runCatching { carPlayCleanMapSlotLease?.close() }
+        carPlayCleanMapSlotLease = null
+        carPlayCleanMapSlot = null
         preferences.unregisterOnSharedPreferenceChangeListener(prefsListener)
         bridgePrefsListener?.let {
             preferences.unregisterOnSharedPreferenceChangeListener(it)
@@ -1585,6 +1594,39 @@ class InstrumentProjector2(private val outerContext: Context, display: Display) 
         invalidateGlobalMaskCache()
 
         super.onStop()
+    }
+
+    private fun attachCarPlayCleanMapSlot() {
+        val slot = FrameLayout(outerContext).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            isClickable = false
+            isFocusable = false
+        }
+        val maskIndex = nativeMaskContainer?.let(root::indexOfChild)?.takeIf { it >= 0 } ?: 0
+        root.addView(slot, maskIndex + 1, FrameLayout.LayoutParams(1920, 720))
+        carPlayCleanMapSlot = slot
+        carPlayCleanMapSlotLease = CarPlayCleanMapCoordinator.attachSlot(
+            slot,
+            CarPlaySecondaryClusterHost.SnapshotProvider {
+                val now = SystemClock.elapsedRealtime()
+                val tasks = CarPlayCleanMapCoordinator.currentTaskObservation()
+                CarPlayClusterHostPolicy.Snapshot(
+                    tasks.observedAtElapsedMs,
+                    slot.display?.displayId ?: -1,
+                    CarPlayCleanMapCoordinator.isExperimentEnabled(),
+                    carPlayCleanMapSlot === slot && slot.parent === root,
+                    br.com.redesurftank.havalshisuku.navigation.CarPlayExperimentalHud.isAndroidAutoKnownInactive(now) &&
+                        !AndroidAutoClusterController.isSessionActive() &&
+                        !AndroidAutoClusterController.isSurfaceAttached(),
+                    tasks.carPlayOnMain,
+                    !isWarningActive && !hvacNativePanelActive && !avmNativePreviewActive,
+                    !isAnyAppOnDisplay3,
+                    tasks.known,
+                    tasks.carPlayOnSecondary,
+                    AndroidAutoClusterController.isClusterRequested()
+                )
+            }
+        )
     }
 
     private fun setupDataListeners() {

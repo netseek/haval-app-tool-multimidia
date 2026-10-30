@@ -105,6 +105,18 @@ public final class ConnDevice implements Parcelable {
         return mBtAddr;
     }
 
+    public int getDeviceType() { return mDeviceType; }
+
+    public int getAccepted() { return mAccepted; }
+
+    public boolean isInUsbDeviceMode() { return mInUsbDeviceMode; }
+
+    public String getUsbHidNode() { return mUsbHidNode; }
+
+    public String getIapNode() { return mIapNode; }
+
+    public String getUsbNcmNode() { return mUsbNcmNode; }
+
     public int getAvailableCapabilitys() {
         return mAvailableCapability;
     }

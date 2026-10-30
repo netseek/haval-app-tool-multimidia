@@ -1,0 +1,302 @@
+{
+  "name": "linker64",
+  "path": "/system/bin/linker64",
+  "fileSize": 1741640,
+  "sha256": "63556e8d8a90ccfbff156c3330a75a2fd0e5955d87000ea77fad1e77c0def06b",
+  "executable": [
+    {
+      "offset": 0,
+      "size": 1204988,
+      "sha256": "0d8a1581fd86bcb63e7704010654df890494e22c6ecf505edb7b3d1ea7d04656"
+    }
+  ],
+  "load": {
+    "offset": 98160,
+    "size": 1964,
+    "sha256": "49aa70ee723710a095d101486540b0787e4dd05e1afdb64ed66e51e60d56ae3c"
+  },
+  "callers": [
+    {
+      "returnOffset": 82636,
+      "offset": 82564,
+      "size": 132,
+      "sha256": "028843a3950d8a46ca728a42767e6dd1cb78fc6478053a1b3586a3e7b03452af"
+    },
+    {
+      "returnOffset": 82504,
+      "offset": 82428,
+      "size": 136,
+      "sha256": "f8caf84594aab1e92b13c29980ac1a8f74972d86d9fa31ab7e71e097869274ee"
+    }
+  ],
+  "kind": "android9-cold-load-boundary-v1",
+  "dependencies": [
+    {
+      "name": "libCarPlayAPI.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libCarPlayAPI.so",
+      "fileSize": 47184,
+      "sha256": "6a3529babccc92d9993cf760496c455dfc07e9170660b0f9d6eb7e476a1e7851",
+      "needed": [
+        "libcarplaystack.so",
+        "libcarplayportinglayer_ts.so",
+        "libCarPlayPlatformMedia.so",
+        "libcarplay_proxy_ts.so",
+        "libc++_shared.so",
+        "liblog.so",
+        "libc.so",
+        "libm.so",
+        "libdl.so"
+      ],
+      "init": {
+        "dtInit": null,
+        "dtInitArray": null,
+        "dtInitArraySize": 0,
+        "targets": [],
+        "dtPreinitArray": null,
+        "dtPreinitArraySize": 0
+      },
+      "executable": [
+        {
+          "offset": 0,
+          "size": 10224,
+          "sha256": "4e202bb2bd558967481bc20a5272c7de89b13aaff4965d0873797e1fbab59953"
+        }
+      ]
+    },
+    {
+      "name": "libCarPlayPlatformMedia.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libCarPlayPlatformMedia.so",
+      "fileSize": 92280,
+      "sha256": "743e198fc2c291c0f881b10f69e500dc876cac0efcc7211422624b583c4d9329",
+      "needed": [
+        "libaaudio.so",
+        "libmediandk.so",
+        "libdl.so",
+        "liblog.so",
+        "libandroid.so",
+        "libc++_shared.so",
+        "libnativewindow.so",
+        "libm.so",
+        "libc.so"
+      ],
+      "init": {
+        "dtInit": null,
+        "dtInitArray": "0x16120",
+        "dtInitArraySize": 8,
+        "targets": [
+          "0x4e80"
+        ],
+        "dtPreinitArray": null,
+        "dtPreinitArraySize": 0
+      },
+      "executable": [
+        {
+          "offset": 0,
+          "size": 86288,
+          "sha256": "2291223edf455291bb3f17e2d0c593b15a687ee2de0645e321ba4b7636a081e3"
+        }
+      ]
+    },
+    {
+      "name": "libcarplay_jni.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libcarplay_jni.so",
+      "fileSize": 151168,
+      "sha256": "82ccd47414d09e40f2d6df6eda82a52354943bdc3ee3681793469feeed05281f",
+      "needed": [
+        "libCarPlayAPI.so",
+        "libc++_shared.so",
+        "libm.so",
+        "liblog.so",
+        "libandroid.so",
+        "libc.so",
+        "libdl.so"
+      ],
+      "init": {
+        "dtInit": null,
+        "dtInitArray": null,
+        "dtInitArraySize": 0,
+        "targets": [],
+        "dtPreinitArray": null,
+        "dtPreinitArraySize": 0
+      },
+      "executable": [
+        {
+          "offset": 0,
+          "size": 51552,
+          "sha256": "1ebfea8d9bd8b0815848eb2e9f70723428f909aac0dff99965fda10187b6ecba"
+        }
+      ]
+    },
+    {
+      "name": "libcarplay_proxy_ts.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libcarplay_proxy_ts.so",
+      "fileSize": 25616,
+      "sha256": "53802a8ba223076ec60980233ebcaa7f824d1a5b1137b9eeb0412dbe37e85b44",
+      "needed": [
+        "liblog.so",
+        "libc.so",
+        "libm.so",
+        "libdl.so"
+      ],
+      "init": {
+        "dtInit": null,
+        "dtInitArray": null,
+        "dtInitArraySize": 0,
+        "targets": [],
+        "dtPreinitArray": null,
+        "dtPreinitArraySize": 0
+      },
+      "executable": [
+        {
+          "offset": 0,
+          "size": 7680,
+          "sha256": "5198d890b05fb898dc0e5feedf43ec420576d6337feed2c0950926efb544c77e"
+        }
+      ]
+    },
+    {
+      "name": "libcarplayportinglayer_ts.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libcarplayportinglayer_ts.so",
+      "fileSize": 3822856,
+      "sha256": "16d0f6a51d175932ba836a6eba1e317498ef8571cda67119963f15c3bc6c5900",
+      "needed": [
+        "libCarPlayPlatformMedia.so",
+        "libtsopus.so",
+        "libc++_shared.so",
+        "liblog.so",
+        "libandroid.so",
+        "libc.so",
+        "libm.so",
+        "libdl.so"
+      ],
+      "init": {
+        "dtInit": null,
+        "dtInitArray": null,
+        "dtInitArraySize": 0,
+        "targets": [],
+        "dtPreinitArray": null,
+        "dtPreinitArraySize": 0
+      },
+      "executable": [
+        {
+          "offset": 0,
+          "size": 879280,
+          "sha256": "4c6aa1d63395ac11d42b542a9405873d62ecc87f12bfb5a3c6b3a7dee89f650e"
+        }
+      ]
+    },
+    {
+      "name": "libtsmdnssd.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libtsmdnssd.so",
+      "fileSize": 153328,
+      "sha256": "96d686254e61c4bf66946b5d1489cea07bf3ad528f8b9757c6fdbf4d109ceb32",
+      "needed": [
+        "liblog.so",
+        "libc.so",
+        "libm.so",
+        "libdl.so"
+      ],
+      "init": {
+        "dtInit": null,
+        "dtInitArray": null,
+        "dtInitArraySize": 0,
+        "targets": [],
+        "dtPreinitArray": null,
+        "dtPreinitArraySize": 0
+      },
+      "executable": [
+        {
+          "offset": 0,
+          "size": 32592,
+          "sha256": "4226c6cfdd027cbf8869deda778970df6f0029fb8aa7710dc51ec4c0626223f2"
+        }
+      ]
+    },
+    {
+      "name": "libtsopus.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libtsopus.so",
+      "fileSize": 1589256,
+      "sha256": "ac4d643c2609f47a4bd8e41659acc5beee268eb30446241632d6d66c0ef47b09",
+      "needed": [
+        "libm.so",
+        "liblog.so",
+        "libc.so",
+        "libdl.so"
+      ],
+      "init": {
+        "dtInit": null,
+        "dtInitArray": null,
+        "dtInitArraySize": 0,
+        "targets": [],
+        "dtPreinitArray": null,
+        "dtPreinitArraySize": 0
+      },
+      "executable": [
+        {
+          "offset": 0,
+          "size": 376736,
+          "sha256": "1e7ac219f00058e7457577630418f510642a2964f4b169b12f8fa1f5726c30e6"
+        }
+      ]
+    },
+    {
+      "name": "libmfiinterface.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libmfiinterface.so",
+      "fileSize": 68472,
+      "sha256": "00ff27bf64c7d85ae8dd7f1d3f41729689b746e232fca7caa7fd3aa0e7d37a61",
+      "needed": [
+        "libcutils.so",
+        "liblog.so",
+        "libhidlbase.so",
+        "libutils.so",
+        "vendor.ts.iap@1.0.so",
+        "libm.so",
+        "libc++.so",
+        "libc.so",
+        "libdl.so"
+      ],
+      "init": {
+        "dtInit": null,
+        "dtInitArray": null,
+        "dtInitArraySize": 0,
+        "targets": [],
+        "dtPreinitArray": null,
+        "dtPreinitArraySize": 0
+      },
+      "executable": [
+        {
+          "offset": 0,
+          "size": 8308,
+          "sha256": "787a9f2ea0b1177b468497d4b09e1263a0af06746a642c99d8feea486560a932"
+        }
+      ]
+    },
+    {
+      "name": "libc++_shared.so",
+      "path": "/vendor/app/TsCarPlayService/lib/arm64/libc++_shared.so",
+      "fileSize": 7812664,
+      "sha256": "d25fdec80cb2ab3b4ca02b189d909bc90a6378411bbf3d3a36a09512f2798638",
+      "needed": [
+        "libc.so",
+        "libdl.so"
+      ],
+      "init": {
+        "dtInit": null,
+        "dtInitArray": "0xf12a0",
+        "dtInitArraySize": 8,
+        "targets": [
+          "0x91824"
+        ],
+        "dtPreinitArray": null,
+        "dtPreinitArraySize": 0
+      },
+      "executable": [
+        {
+          "offset": 0,
+          "size": 954784,
+          "sha256": "450f6516667741495eda8155fc2d54ae44e279b3f120e7cf2cf60b7000178594"
+        }
+      ]
+    }
+  ]
+}

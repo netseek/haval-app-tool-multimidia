@@ -42,6 +42,8 @@ object ClusterPersistentEventLogger {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val fileLock = Any()
+    private val leaseLock = Any()
+    private val activeCaptureLeases = mutableSetOf<String>()
     private val lineTimestampFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z", Locale.US)
     private val fileDateFormat = SimpleDateFormat("yyyyMMdd", Locale.US)
 
@@ -65,7 +67,7 @@ object ClusterPersistentEventLogger {
                 runCatching { App.getDeviceProtectedContext() }
                         .getOrNull()
                         ?: return
-        if (!isPersistentCaptureEnabled(context)) return
+        if (!isCaptureActive(context)) return
 
         val nowMs = System.currentTimeMillis()
         val elapsedMs = SystemClock.elapsedRealtime()
@@ -109,6 +111,33 @@ object ClusterPersistentEventLogger {
                 }
                 .getOrDefault(false)
     }
+
+    /**
+     * Keeps diagnostic events enabled for one explicit, process-local operation without
+     * changing the owner's persisted preference. Closing one lease cannot disable another
+     * feature or overwrite a preference changed while the operation was active.
+     */
+    @JvmStatic
+    fun acquireCaptureLease(owner: String): AutoCloseable {
+        require(owner.isNotBlank() && owner.length <= 80) { "Bounded lease owner required" }
+        synchronized(leaseLock) {
+            check(activeCaptureLeases.add(owner)) { "Capture lease already active" }
+        }
+        var closed = false
+        return AutoCloseable {
+            synchronized(leaseLock) {
+                if (!closed) {
+                    closed = true
+                    activeCaptureLeases.remove(owner)
+                }
+            }
+        }
+    }
+
+    private fun isCaptureActive(context: Context): Boolean =
+        isPersistentCaptureEnabled(context) || synchronized(leaseLock) { activeCaptureLeases.isNotEmpty() }
+
+    internal fun activeCaptureLeaseCount(): Int = synchronized(leaseLock) { activeCaptureLeases.size }
 
     @JvmStatic
     fun isDiagnosticLoggingAvailable(): Boolean {
