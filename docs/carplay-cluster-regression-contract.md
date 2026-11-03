@@ -587,7 +587,9 @@ do app normal no D0 que podia trocar a rota de video, e a camera condicional: ca
 no D0, mas nao toma a rota de video quando o alvo desejado do CarPlay e D3.
 
 - `TsCarPlayApp.apk` embarcado deve manter MD5 `9d48c33f49dbeeb020c2fdc7e16bbc53`;
-- `TsCarPlayService.apk` embarcado deve manter MD5 `f0269fc640778825843762dcf55a8b83`;
+- `TsCarPlayService.apk` embarcado deve manter MD5 `b61f0e4d63535a2ef447be559211697b`;
+  esse binário preserva os patches de câmera/HVAC e acrescenta somente o gate
+  frio opt-in, limitado a 10 segundos e inativo sem nonce explícito;
 - `ForegroundService` deve manter a versao de auto-mount
   `app_visual_d0_focus_service_conditional_camera_native1904x704_v14`;
 - `CarPlayPatchManager` deve montar app + service e, quando o mount muda com CarPlay visual ativo,
@@ -691,8 +693,8 @@ A solucao atual e condicionar a camera ao alvo desejado do CarPlay.
 
 Contrato da variante atual:
 
-- o asset embarcado de `TsCarPlayService.apk` deve ser conditional-camera/release, MD5
-  `f0269fc640778825843762dcf55a8b83`;
+- o asset embarcado de `TsCarPlayService.apk` deve ser conditional-camera/release
+  com cold gate opt-in, MD5 `b61f0e4d63535a2ef447be559211697b`;
 - `patch_logic_service.py --include-camera` pode continuar existindo como ferramenta staged, mas o
   APK gerado por esse caminho nao pode ser o asset de auto-mount sem nova validacao fisica;
 - `0x7` e `backCameraStatusChangedTo(APP_ON/OFF)` permanecem stock quando

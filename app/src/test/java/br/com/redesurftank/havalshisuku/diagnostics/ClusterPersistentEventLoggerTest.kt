@@ -8,6 +8,20 @@ import org.junit.Test
 
 class ClusterPersistentEventLoggerTest {
     @Test
+    fun captureLeasesAreIndependentAndIdempotentOnClose() {
+        val first = ClusterPersistentEventLogger.acquireCaptureLease("test-first")
+        val second = ClusterPersistentEventLogger.acquireCaptureLease("test-second")
+        assertTrue(ClusterPersistentEventLogger.activeCaptureLeaseCount() == 2)
+
+        first.close()
+        first.close()
+        assertTrue(ClusterPersistentEventLogger.activeCaptureLeaseCount() == 1)
+
+        second.close()
+        assertTrue(ClusterPersistentEventLogger.activeCaptureLeaseCount() == 0)
+    }
+
+    @Test
     fun deletesOnlyLogsOlderThanThreeDayRetentionWindow() {
         val now =
                 Calendar.getInstance(Locale.US)

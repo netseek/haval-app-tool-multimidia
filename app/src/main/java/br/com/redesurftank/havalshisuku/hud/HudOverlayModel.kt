@@ -43,6 +43,12 @@ object HudOverlayModel {
     const val HERO_UNIT_SIZE = 14f
     const val HERO_TEXT_GAP = 22f // icon bottom edge to text baseline
 
+    // Guidance without a confirmed maneuver (CarPlay): use the existing free HUD box,
+    // displaying the road and distance without reserving space for an invented arrow.
+    const val TEXT_STREET_BASELINE = 102f
+    const val TEXT_STREET_SIZE = 16f
+    const val TEXT_DISTANCE_BASELINE = 137f
+
     const val UNIT_GAP = 4f
 
     // Roundabout exit number. In the big arrow it sits in the ring's hole: the hole's centre and
@@ -371,6 +377,8 @@ object HudOverlayModel {
 
     /** How the turn-by-turn block is laid out. */
     enum class TbtStyle {
+        /** Road and distance only; no confirmed maneuver/arrow or AR geometry. */
+        TEXT,
         /** No lanes: big arrow, small distance under it. */
         HERO,
         /** Lanes: small arrow + distance row centred over the lane row. */
@@ -1394,8 +1402,12 @@ object HudOverlayModel {
         // side, a ferry, a roundabout without its exit) or no distance yet (AA sends the new step
         // before its distance) stays in AR, straight on: dropping to the plain row took the 3D
         // map away at junctions (owner, 2026-10-25).
-        val arAngle = if (config.layout != Layout.AR) null else HudArArrow.angleFor(d.turn) ?: 0f
+        // CarPlay's experimental text-only guidance carries neither an identified maneuver
+        // nor AA's numeric distance. Its formatted distance must not imply a straight arrow.
+        val textOnly = d.turn.isBlank() && d.turnId == null && d.distanceM == null
+        val arAngle = if (config.layout != Layout.AR || textOnly) null else HudArArrow.angleFor(d.turn) ?: 0f
         val style = when {
+            textOnly -> TbtStyle.TEXT
             // AR keeps the centre arrow with lanes too; the lanes go to the left column.
             arAngle != null -> TbtStyle.AR
             lanes.isNotEmpty() -> TbtStyle.COMPACT

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import br.com.redesurftank.App
 import br.com.redesurftank.havalshisuku.ambientlight.AmbientLightSettingsScreen
 import br.com.redesurftank.havalshisuku.models.SharedPreferencesKeys
+import br.com.redesurftank.havalshisuku.navigation.CarPlayCaptureScreen
 import br.com.redesurftank.havalshisuku.radar.RadarSettings
 import br.com.redesurftank.havalshisuku.radar.RadarSettingsScreen
 import br.com.redesurftank.havalshisuku.ui.theme.Michroma
@@ -56,16 +57,18 @@ fun FeaturesHubScreen() {
         "score" -> TripConsistencyScreen(onBackToFeatures = { selectedFeature = null })
         "ambient_light" -> AmbientLightSettingsScreen(onBackToFeatures = { selectedFeature = null })
         "radar" -> RadarSettingsScreen(onBackToFeatures = { selectedFeature = null })
+        "carplay_capture" -> CarPlayCaptureScreen(onBackToFeatures = { selectedFeature = null })
         else -> FeaturesHome(
             onOpenScore = { selectedFeature = "score" },
             onOpenAmbientLight = { selectedFeature = "ambient_light" },
-            onOpenRadar = { selectedFeature = "radar" }
+            onOpenRadar = { selectedFeature = "radar" },
+            onOpenCarPlayCapture = { selectedFeature = "carplay_capture" }
         )
     }
 }
 
 @Composable
-private fun FeaturesHome(onOpenScore: () -> Unit, onOpenAmbientLight: () -> Unit, onOpenRadar: () -> Unit) {
+private fun FeaturesHome(onOpenScore: () -> Unit, onOpenAmbientLight: () -> Unit, onOpenRadar: () -> Unit, onOpenCarPlayCapture: () -> Unit) {
     val prefs =
         App.getDeviceProtectedContext()
             .getSharedPreferences("haval_prefs", Context.MODE_PRIVATE)
@@ -90,6 +93,16 @@ private fun FeaturesHome(onOpenScore: () -> Unit, onOpenAmbientLight: () -> Unit
         }
 
         RadarFeatureCard(onConfigure = onOpenRadar)
+
+        FeatureCard(
+            title = "Teste CarPlay · captura + HUD",
+            description = "Inicie captura, HUD e logs do cluster por 5 minutos com um único botão.",
+            status = "Experimental · 1 toque",
+            icon = Icons.Default.Construction,
+            enabled = true,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onOpenCarPlayCapture
+        )
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             FeatureCard(

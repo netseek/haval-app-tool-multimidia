@@ -40,14 +40,13 @@ function isProjectionMapDisplayActive() {
         get('projectionPreparingD3') === true;
 }
 
-function isProjectionCardOverlayActive() {
+function isProjectionCardOverlayActive(screen = get('screen')) {
     if (!isProjectionMapDisplayActive()) {
         return false;
     }
     if (get('projectionCardOverlayAllowed') !== true) {
         return false;
     }
-    const screen = get('screen');
     return isMainMenuSessionScreen(screen) || screen === 'aircon';
 }
 
@@ -57,6 +56,16 @@ function isMainMenuDetailScreen(screen) {
 
 function isMainMenuSessionScreen(screen) {
     return screen === 'main_menu' || isMainMenuDetailScreen(screen);
+}
+
+function isRightMenuVisible(cardId, screen) {
+    if (isProjectionMapDisplayActive()) {
+        // A neutral OEM card must not close a menu session armed by physical input.
+        // Bootstrap cards still need the backend's explicit boolean authorization.
+        const projectionCardOverlayActive = isProjectionCardOverlayActive(screen);
+        return projectionCardOverlayActive;
+    }
+    return cardId != 0;
 }
 
 function getEffectiveDisplayMode() {
@@ -266,9 +275,7 @@ function render() {
 
     if (menuWrapper) {
         const cardId = get('cardId');
-        const projectionCardOverlayActive = isProjectionCardOverlayActive();
-        const rightMenuVisible = (cardId != 0);
-        menuWrapper.style.display = (!rightMenuVisible || (projectionMapDisplayActive && !projectionCardOverlayActive)) ? 'none' : 'block';
+        menuWrapper.style.display = isRightMenuVisible(cardId, screen) ? 'block' : 'none';
     }
 
     if (screenCache[screen]) {
@@ -967,12 +974,10 @@ subscribe('cardId', (cardId) => {
     // car -> backend -> onCardChanged. Reporting it back gave the backend a second
     // writer for the active card.
 
-    // 0 = hide the right menu display
+    // During projection, only an authorized menu session may cover its local area.
     if (menuWrapper) {
-        const projectionMapDisplayActive = isProjectionMapDisplayActive();
-        const projectionCardOverlayActive = isProjectionCardOverlayActive();
-        const rightMenuVisible = (cardId != 0);
-        menuWrapper.style.display = (!rightMenuVisible || (projectionMapDisplayActive && !projectionCardOverlayActive)) ? 'none' : 'block';
+        const screen = get('screen');
+        menuWrapper.style.display = isRightMenuVisible(cardId, screen) ? 'block' : 'none';
     }
 
     if (cardId == 1) {

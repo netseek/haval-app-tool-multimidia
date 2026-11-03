@@ -156,4 +156,5 @@ class AndroidAutoNavigationTelemetryTest {
         val json = publisher.onUpdate(first.copy(exitNumber = 2), 10L)
         assertTrue(json!!.contains("\"exit_number\":2"))
     }
+
 }

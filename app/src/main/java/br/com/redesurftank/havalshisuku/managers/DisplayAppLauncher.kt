@@ -9009,6 +9009,7 @@ object DisplayAppLauncher {
 
     @Volatile private var cachedStackList: String? = null
     @Volatile private var cachedStackListAtMs = 0L
+    @Volatile private var cachedStackListObservedAtMs = 0L
     private val stackListCacheLock = Any()
 
     /** See [topPackageFromActivitiesDumpFallback]. */
@@ -9021,6 +9022,7 @@ object DisplayAppLauncher {
         synchronized(stackListCacheLock) {
             cachedStackList = null
             cachedStackListAtMs = 0L
+            cachedStackListObservedAtMs = 0L
             cachedActivitiesTopDump = null
             cachedActivitiesTopDumpAtMs = 0L
         }
@@ -9044,10 +9046,26 @@ object DisplayAppLauncher {
                 return fresh
             }
 
+            val observedAt = SystemClock.elapsedRealtime()
             val out = ShizukuUtils.runCommandAndGetOutput(arrayOf("sh", "-c", "am stack list 2>&1"))
             cachedStackList = out
+            cachedStackListObservedAtMs = observedAt
             cachedStackListAtMs = SystemClock.elapsedRealtime()
             return out
+        }
+    }
+
+    /** Single cached AM sample with its original monotonic age; caller must run off the UI thread. */
+    internal fun readCarPlayCleanMapTasks(): br.com.redesurftank.havalshisuku.experimental.CarPlayCleanMapTaskObservation {
+        check(android.os.Looper.myLooper() != android.os.Looper.getMainLooper())
+        synchronized(stackListCacheLock) {
+            val raw = getStackList()
+            val sourceAt = cachedStackListObservedAtMs
+            if (sourceAt <= 0 || cachedStackList !== raw) {
+                return br.com.redesurftank.havalshisuku.experimental.CarPlayCleanMapTaskObservation.unknown()
+            }
+            return br.com.redesurftank.havalshisuku.experimental.CarPlayCleanMapTaskObservation.parse(
+                raw, sourceAt)
         }
     }
 
