@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "frida-17.5.2-android-arm64-init-tailcall-ret-v1",
+  "policyMode": "permissive-existing-policy-v1",
+  "upstreamVersion": "17.5.2",
+  "upstreamCommit": "bcd4a3d586f5a95cad943ddb176be23aadf1dfd7",
+  "originalSize": 51758352,
+  "originalSha256": "bdfa97cdd84ca678c5e5eea9eb6625c9528acff32b4f9413f1e5c58a3d15222e",
+  "patchedSha256": "32f7c702ea36c9ad1d09d2dc9e21de5f4994d98f855c4e51db01bcc6d0fd496a",
+  "patchFileOffset": 4497304,
+  "patchAddress": "0x44af98",
+  "tailTargetAddress": "0x2dd23dc",
+  "originalInstructionHex": "111da614",
+  "replacementInstructionHex": "c0035fd6",
+  "callerFileOffset": 4497284,
+  "callerHex": "fd7bbfa9fd030091e0031f2a101ba694fd7bc1a8111da614",
+  "upstreamSource": "https://github.com/frida/frida-core/blob/17.5.2/inject/inject-glue.c",
+  "semantics": "Return after frida_init_with_runtime and frame restore; omit only the Android policy-patch tail call. Never change SELinux mode. Runtime must refuse enforcing or indeterminate mode."
+}

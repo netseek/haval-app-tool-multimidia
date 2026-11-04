@@ -642,6 +642,7 @@ public class ForegroundService extends Service implements Shizuku.OnBinderDeadLi
         scheduleAndroidAutoPatchAutoMount("shizuku-ready");
         scheduleSelfCompileAfterUpdate();
         scheduleCarPlayPatchAutoMount("shizuku-ready");
+        br.com.redesurftank.havalshisuku.managers.CarPlayBridgeBootstrapManager.start(getApplicationContext());
 
         // Start SSH check and start in background with retry
         backgroundHandler.post(new Runnable() {

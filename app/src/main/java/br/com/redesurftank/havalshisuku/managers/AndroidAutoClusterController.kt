@@ -166,7 +166,7 @@ object AndroidAutoClusterController {
 
     fun onNavigationUpdate(update: AndroidAutoNavigationTelemetry.Directions, nowMs: Long = SystemClock.elapsedRealtime()) {
         onNavigationActive(update.active, nowMs)
-        br.com.redesurftank.havalshisuku.hud.HudOverlayController.onDirections(update)
+        br.com.redesurftank.havalshisuku.navigation.CarPlayExperimentalHud.onAndroidAuto(update)
         publishDirections(update, nowMs, force = false)
         mainHandler.removeCallbacks(flushDirectionsRunnable)
         mainHandler.postDelayed(flushDirectionsRunnable, AndroidAutoNavigationTelemetry.THROTTLE_MS)
@@ -237,7 +237,7 @@ object AndroidAutoClusterController {
         lastNavigationActiveAtMs.set(0L)
         sessionStopSuppressed.set(false)
         detachSurface("session_stopped")
-        br.com.redesurftank.havalshisuku.hud.HudOverlayController.onDirections(AndroidAutoNavigationTelemetry.inactive())
+        br.com.redesurftank.havalshisuku.navigation.CarPlayExperimentalHud.onAndroidAuto(AndroidAutoNavigationTelemetry.inactive())
         directionsPublisher.reset()
         ServiceManager.getInstance().dispatchTelemetryOnly(
             AndroidAutoTelemetryKeys.DIRECTIONS,
